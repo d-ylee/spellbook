@@ -1,3 +1,5 @@
+# Multithreaded example program
+# Takes input of a text file, and uses n threads to print the lines of that file (in whatever order)
 # Brandon White, 2022
 
 import argparse
@@ -6,7 +8,6 @@ import threading
 def do_processing(tid, files, args):
     for f in files:
         print(f'(tid {tid})f: {f}')
-        # TODO: Upload the file
 
 def get_file_queues(num_threads, f):
     # Splits the list of files into (almost) equal buckets of work per thread

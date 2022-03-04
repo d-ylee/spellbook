@@ -3,10 +3,14 @@
 # Brandon White, 2022
 
 import argparse
+import logging
+import os
+import rucio
 import subprocess
 import threading
-import rucio
-import logger
+
+from rucio.client import Client as RucioClient
+from rucio.client.uploadclient import UploadClient as RucioUploadClient
 
 
 logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', level=logging.INFO)
@@ -14,19 +18,24 @@ logger = logging.getLogger('rbu')
 
 
 class RucioUploader:
-    def __init__(self, rucio_account, account, scope, dataset_name, rse):
-        self.rucio_account = rucio_account
-        self.scope = scope
-        self.dataset_name = dataset_name
-        self.rse = rse 
+    def __init__(self, args):
+        self.just_say = args.just_say
+        self.rucio_account = args.rucio_account
+        self.scope = args.scope
+        self.dataset_name = args.dataset_name
+        self.rse = args.rse 
+        self.register_after_upload = args.register_after_upload
         self.rucio_client = RucioClient(account=self.rucio_account)
         self.rucio_upload_client = RucioUploadClient(_client=self.rucio_client, logger=logger)
 
     def do_processing(self, tid, files):
         logger.info(f'(tid:{tid}) Preparing {len(files)} files for upload')
         upload_items = prepare_items(files)
-        logger.info(f'(tid:{tid}) Uploading {len(files)} files to {self.rse}.\n\tAdding them to the dataset {self.scope}:{self.dataset_name}')
-        self.rucio_upload_client.upload(items)
+        if not self.just_say:
+            logger.info(f'(tid:{tid}) Uploading {len(files)} files to {self.rse}.\n\tAdding them to the dataset {self.scope}:{self.dataset_name}')
+            self.rucio_upload_client.upload(items)
+        else:
+            logger.info(f'(tid:{tid}) Would have uploaded {len(files)} files to {self.rse}.\n\tWould have added them to the dataset {self.scope}:{self.dataset_name}')
 
 
     def prepare_items(self, files):
@@ -45,12 +54,15 @@ class RucioUploader:
 
     def rucio_create_dataset(self):
         logger.info(f'Creating Rucio dataset')
-        rc = self.rucio_client.add_dataset(
-                self.test_params.rucio_scope,
-                dataset_name,
-                rse=self.rse
-        )
-        return f'{self.scope}:{self.dataset_name}'
+        if not self.just_say:
+            logger.info(f'(Main) Creating dataset {self.scope}:{self.dataset_name}')
+            rc = self.rucio_client.add_dataset(
+                    self.test_params.rucio_scope,
+                    dataset_name,
+                    rse=self.rse
+            )
+        else:
+            logger.info(f'(Main) Would created the dataset {self.scope}:{self.dataset_name}')
 
 
 def get_file_queues(num_threads, f):
@@ -67,7 +79,7 @@ def get_file_queues(num_threads, f):
 
 def main():
     args = get_program_arguments()
-    uploader = RucioUploader(args.rucio_account, args.scope, args.dataset_name, args.rse)
+    uploader = RucioUploader(args)
     uploader.rucio_create_dataset()
 
     threads = []
@@ -85,13 +97,14 @@ def main():
 
 def get_program_arguments():
     parser = argparse.ArgumentParser(description="Rucio Bulk Upload: Helper to upload files to Rucio in parallel trivially.")
-    parser.add_argument('rucio-account', help='Rucio account to be used.')
-    parser.add_argument('dataset-name', help='Name of the dataset to be created that all uploaded files are to be attached to.')
+    parser.add_argument('dataset_name', help='Name of the dataset to be created that all uploaded files are to be attached to.')
     parser.add_argument('rse', help='Rucio Storage Element that the files will be uploaded to.')
     parser.add_argument('filelist', help='Text file with one file name per line of the files to be uploaded.')
     parser.add_argument('--num-threads', type=int, default=1, help='Number of threads to divy up filelist between.')
+    parser.add_argument('--rucio-account', default=os.getlogin(), help='Rucio account to be used.')
     parser.add_argument('--scope', help='Rucio scope that the files are to be placed in. Default: user.{rucio-account}')
     parser.add_argument('--register-after-upload', type=bool, default=False, help='Passed to Rucio upload(). Default: False')
+    parser.add_argument('--just-say', type=bool, default=False, help='For testing. Do not actually upload files if True. Default: False')
 
     args = parser.parse_args()
     return args

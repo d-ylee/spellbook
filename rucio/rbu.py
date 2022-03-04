@@ -23,8 +23,11 @@ class RucioUploader:
         self.rucio_upload_client = RucioUploadClient(_client=self.rucio_client, logger=logger)
 
     def do_processing(self, tid, files):
+        logger.info(f'(tid:{tid}) Preparing {len(files)} files for upload')
         upload_items = prepare_items(files)
+        logger.info(f'(tid:{tid}) Uploading {len(files)} files to {self.rse}.\n\tAdding them to the dataset {self.scope}:{self.dataset_name}')
         self.rucio_upload_client.upload(items)
+
 
     def prepare_items(self, files):
         items = []
@@ -35,6 +38,7 @@ class RucioUploader:
                 'did_scope': self.rucio_scope,
                 'dataset_scope': self.rucio_scope,
                 'dataset_name': self.dataset_name,
+                'register_after_upload': self.register_after_upload
             }
             items.append(item)
         return items
@@ -52,11 +56,12 @@ class RucioUploader:
 def get_file_queues(num_threads, f):
     # Splits the list of files into (almost) equal buckets of work per thread
     queues = [ [] for i in range(num_threads) ]
-    i = 0
+    num_files = 0
     for filename in f:
-        which_queue = i % num_threads
+        which_queue = num_files % num_threads
         queues[which_queue].append(filename.strip())
-        i += 1
+        num_files += 1
+    logger.info(f'(Main) Total files: {num_files}\n\t~{num_files/num_threads} allocated per worker')
     return queues
 
 
@@ -66,6 +71,7 @@ def main():
     uploader.rucio_create_dataset()
 
     threads = []
+    logger.info(f'(Main) Starting up {args.num_threads} worker threads')
     with open(args.filelist) as f: # Obtain the work distribution and hand it to the threads
         file_queues =  get_file_queues(args.num_threads, f)
         for i in range(args.num_threads):
@@ -74,6 +80,7 @@ def main():
             threads.append(t)
     for t in threads:
         t.join()
+    logger.info(f'(Main) Uploads complete.')
 
 
 def get_program_arguments():
@@ -84,6 +91,7 @@ def get_program_arguments():
     parser.add_argument('filelist', help='Text file with one file name per line of the files to be uploaded.')
     parser.add_argument('--num-threads', type=int, default=1, help='Number of threads to divy up filelist between.')
     parser.add_argument('--scope', help='Rucio scope that the files are to be placed in. Default: user.{rucio-account}')
+    parser.add_argument('--register-after-upload', type=bool, default=False, help='Passed to Rucio upload(). Default: False')
 
     args = parser.parse_args()
     return args

@@ -1,0 +1,103 @@
+# Parallel rsync Transfer Program
+# Transfers a directory from remote host(s) in parallel to a given local filesystem using rsync
+# Brandon White, 2022
+
+import argparse
+import getpass
+import logging
+import os
+import os.path
+import subprocess
+import threading
+
+logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', level=logging.INFO)
+logger = logging.getLogger()
+fail_logger = logging.getLogger('fail_log')
+fh = logging.FileHandler('rsync-fail-log')
+fail_logger.addHandler(fh)
+
+
+def execute_transfer(local_directory, remote_host, f_path, user):
+    remote_source = f'{user}@{remote_host}:{f_path}'
+    format_string = '--out-format=\"%o %m %i %n %l %C\"'
+    # TODO: Is there a way to use ./ in the remote side for proper separation of the relative path on the destination side?
+    xfer_process = subprocess.Popen([
+        'rsync',
+        '--times',
+        '--relative',
+        format_string,
+        remote_source,
+        local_directory
+    ], stdout=subprocess.PIPE)
+    xfer_stdout, xfer_stderr = xfer_process.communicate()
+    logger.info(f'{xfer_stdout.decode().strip()}')
+    if xfer_stderr is not None:
+        fail_logger.error(f'{xfer_stderr.decode().strip()}')
+
+def do_processing(tid, files, args):
+    remote_hosts = args.remotehosts.split(',')
+    i = 0
+    for f_path in files:
+        remote_host_index = i % len(remote_hosts) # Incrementally select the next host round-robin for load-balancing
+        logger.info(f'Executing transfer of {f_path} from {remote_hosts[remote_host_index]} to args.localdirectory')
+        execute_transfer(args.localdirectory, remote_hosts[remote_host_index], f_path, args.user)
+        i += 1
+        print(f'(tid {tid})Completed: {f_path}')
+
+def get_file_queues(num_threads, f):
+    # Splits the list of files into (almost) equal buckets of work per thread
+    queues = [ [] for i in range(num_threads) ]
+    i = 0
+    for filename in f:
+        which_queue = i % num_threads
+        queues[which_queue].append(filename.strip())
+        i += 1
+    return queues
+
+def get_program_arguments():
+    parser = argparse.ArgumentParser(description='Transfers a directory from a remote host(s) in parallel to a given local filesystem using rsync')
+    parser.add_argument('remotehosts', type=str, help='Remote hostname to transfer from. \
+            May be provided as a comma-separated list of hostnames to cycle through.\n\
+            All hostnames must have the same view of the transfer source filesystem.')
+    parser.add_argument('remotedirectory', type=str, help='Remote directory whose contents are to \
+            be transferred to the local host.')
+    parser.add_argument('localdirectory', type=str, help='Local directory that is the \
+            destination of the transfer operation.')
+    parser.add_argument('--num-threads', type=int, default=1, help='Number of threads to divy up lines .')
+    parser.add_argument('--user', type=str, default=getpass.getuser(), help='User to execute the rsync as. \
+            Defaults to current linux user.')
+
+    # Arguments in question
+    #parser.add_argument('remote-user', type=int, default=1, help='User to execute remote operations as.')
+    #parser.add_argument('--chunk-size', type=int, default=1000, help='Number of ????.')
+
+    args = parser.parse_args()
+    return args
+
+def main():
+    args = get_program_arguments()
+    logstr = f'Executing transfer with the following parameters:\n\
+            \tRemote Host(s): {args.remotehosts}\n\
+            \tRemote Directory (transfer source): {args.remotedirectory}\n\
+            \tLocal Directory (transfer destination): {args.localdirectory}\n\
+            \tNum Threads: {args.num_threads}\n\
+            \tUser: {args.user}'
+    logger.info(logstr)
+
+    if not os.path.isdir(args.localdirectory):
+        os.mkdir(args.localdirectory)
+    
+    threads = []
+    with open(transfer_info_f) as f: # Obtain the work distribution and hand it to the threads
+        file_queues =  get_file_queues(args.num_threads, f)
+        logger.info(f'Starting {args.num_threads} threads')
+        for i in range(args.num_threads):
+            logger.info(f'Starting tid: {i}')
+            t = threading.Thread(target=do_processing, args=(i, file_queues[i], args))
+            t.start()
+            threads.append(t)
+    for t in threads:
+        t.join()
+
+if __name__ == "__main__":
+    main()

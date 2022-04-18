@@ -18,7 +18,7 @@ def execute_transfer(tid, local_directory, remote_host, f_path, user):
     remote_source = f'{user}@{remote_host}:{f_path}'
     format_string = '--out-format=\"%o %m %i %n %l %C\"'
     logger.info(f'(tid:{tid}) Executing transfer of {f_path} from {remote_host} to {local_directory}\n\t\
-            rsync -t -R --out-format=\"%o %m %i %n %l %C\" {remote_source} {local_directory}')
+            rsync -t -R {format_string} {remote_source} {local_directory}')
     # TODO: Is there a way to use ./ in the remote side for proper separation of the relative path on the destination side?
     xfer_process = subprocess.Popen([
         'rsync',
@@ -67,11 +67,6 @@ def get_program_arguments():
     parser.add_argument('--num-threads', type=int, default=1, help='Number of threads to divy up lines .')
     parser.add_argument('--user', type=str, default=getpass.getuser(), help='User to execute the rsync as. \
             Defaults to current linux user.')
-
-    # Arguments in question
-    # Do we instead want to transfer based off of directories rather than files?
-    #parser.add_argument('remotedirectory', type=str, help='Remote directory whose contents are to be transferred to the local host.')
-    #   \tRemote Directory (transfer source): {args.remotedirectory}\n\
 
     args = parser.parse_args()
     return args

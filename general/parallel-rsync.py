@@ -12,10 +12,7 @@ import threading
 
 logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', level=logging.INFO)
 logger = logging.getLogger()
-fail_logger = logging.getLogger('fail_log')
-fh = logging.FileHandler('rsync-fail-log')
-fail_logger.addHandler(fh)
-
+fail_logger = None
 
 def execute_transfer(tid, local_directory, remote_host, f_path, user):
     remote_source = f'{user}@{remote_host}:{f_path}'
@@ -25,7 +22,7 @@ def execute_transfer(tid, local_directory, remote_host, f_path, user):
     # TODO: Is there a way to use ./ in the remote side for proper separation of the relative path on the destination side?
     xfer_process = subprocess.Popen([
         'rsync',
-        '--times',
+        '--archive',
         '--relative',
         format_string,
         remote_source,
@@ -34,6 +31,11 @@ def execute_transfer(tid, local_directory, remote_host, f_path, user):
     xfer_stdout, xfer_stderr = xfer_process.communicate()
     logger.info(f'(tid:{tid}) {xfer_stdout.decode().strip()}')
     if xfer_stderr is not None:
+        if fail_logger is None:
+            fail_logger = logging.getLogger('fail_log')
+            fh = logging.FileHandler('rsync-fail-log')
+            fail_logger.addHandler(fh)
+
         fail_logger.error(f'{xfer_stderr.decode().strip()}')
 
 def do_processing(tid, files, args):

@@ -14,9 +14,10 @@ logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', 
 logger = logging.getLogger()
 fail_logger = None
 
-def execute_transfer(tid, local_directory, remote_host, f_path, user):
+def execute_transfer(tid, local_directory, remote_host, f_path, user, pwd_f):
     remote_source = f'{user}@{remote_host}::{f_path}'
     format_string = '--out-format=\"%o %m %i %n %l %C\"'
+    pwd_arg = f'--password-file {pwd_f}'
     logger.info(f'(tid:{tid}) Executing transfer of {f_path} from {remote_host} to {local_directory}\n\t\
             rsync -t -R {format_string} {remote_source} {local_directory}')
     # TODO: Is there a way to use ./ in the remote side for proper separation of the relative path on the destination side?
@@ -24,6 +25,7 @@ def execute_transfer(tid, local_directory, remote_host, f_path, user):
         'rsync',
         '--archive',
         '--relative',
+        pwd_arg,
         format_string,
         remote_source,
         local_directory
@@ -43,7 +45,7 @@ def do_processing(tid, files, args):
     i = 0
     for f_path in files:
         remote_host_index = i % len(remote_hosts) # Incrementally select the next host round-robin for load-balancing
-        execute_transfer(tid, args.localdirectory, remote_hosts[remote_host_index], f_path, args.user)
+        execute_transfer(tid, args.localdirectory, remote_hosts[remote_host_index], f_path, args.user, args.password_file)
         i += 1
 
 def get_file_queues(num_threads, f):
@@ -64,6 +66,7 @@ def get_program_arguments():
     parser.add_argument('localdirectory', type=str, help='Local directory that is the \
             destination of the transfer operation.')
     parser.add_argument('transfer_info_f', type=str, help='File containing one file path on the remote host per line')
+    parser.add_argument('password_file', type=str, help='When running in daemon mode, you are gonna want this.')
     parser.add_argument('--num-threads', type=int, default=1, help='Number of threads to divy up lines .')
     parser.add_argument('--user', type=str, default=getpass.getuser(), help='User to execute the rsync as. \
             Defaults to current linux user.')

@@ -15,7 +15,7 @@ logger = logging.getLogger()
 fail_logger = None
 
 def execute_transfer(tid, local_directory, remote_host, f_path, user):
-    remote_source = f'{user}@{remote_host}:{f_path}'
+    remote_source = f'{user}@{remote_host}::{f_path}'
     format_string = '--out-format=\"%o %m %i %n %l %C\"'
     logger.info(f'(tid:{tid}) Executing transfer of {f_path} from {remote_host} to {local_directory}\n\t\
             rsync -t -R {format_string} {remote_source} {local_directory}')

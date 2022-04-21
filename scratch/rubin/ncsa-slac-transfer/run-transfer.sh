@@ -10,6 +10,6 @@ python3 ${parallel_rsync_script} \
 	--num-threads 32 \
 	${host_list} \
 	${xfer_dest_dir} \
-	first-transfer.input \
+	${0} \
 	${pwd_f}
 echo $(date)

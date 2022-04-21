@@ -26,6 +26,8 @@ def execute_transfer(tid, local_directory, remote_host, f_path, user, pwd_f):
         'rsync',
         '--archive',
         '--relative',
+        '--verbose',
+        '--progress',
         pwd_arg,
         format_string,
         remote_source,

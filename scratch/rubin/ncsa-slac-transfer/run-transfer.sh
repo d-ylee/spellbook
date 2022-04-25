@@ -7,9 +7,9 @@ parallel_rsync_script=/sdf/home/b/bjwhite/spellbook/general/parallel-rsync.py
 echo $(date)
 python3 ${parallel_rsync_script} \
 	--user slacxfer \
-	--num-threads 32 \
+	--num-threads ${1} \
 	${host_list} \
 	${xfer_dest_dir} \
-	${1} \
+	${2} \
 	${pwd_f}
 echo $(date)

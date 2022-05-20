@@ -28,6 +28,8 @@ def execute_transfer(tid, local_directory, remote_host, f_path, user, pwd_f):
         '--relative',
         '--verbose',
         '--progress',
+        '--ignore-times',
+        '--xattrs',
         pwd_arg,
         format_string,
         remote_source,

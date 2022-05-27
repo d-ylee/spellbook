@@ -21,14 +21,10 @@ def execute_transfer(tid, local_directory, remote_host, f_path, user, pwd_f):
     pwd_arg = f'--password-file={pwd_f}'
     logger.info(f'(tid:{tid}) Executing transfer of {f_path} from {remote_host} to {local_directory}\n\t\
             rsync --archive --relative --verbose --progress --ignore-times --xattrs {pwd_arg} {format_string} {remote_source} {local_directory}')
-    # TODO: Is there a way to use ./ in the remote side for proper separation of the relative path on the destination side?
     xfer_process = subprocess.Popen([
         'rsync',
         '--archive',
         '--relative',
-        '--verbose',
-        '--progress',
-        '--ignore-times',
         '--xattrs',
         pwd_arg,
         format_string,

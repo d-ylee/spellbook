@@ -8,7 +8,7 @@ import logging
 import os
 import os.path
 import subprocess
-import threading
+import multiprocessing
 
 logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', level=logging.INFO)
 logger = logging.getLogger()
@@ -49,12 +49,12 @@ def do_processing(tid, files, args):
         execute_transfer(tid, args.localdirectory, remote_hosts[remote_host_index], f_path, args.user, args.password_file)
         i += 1
 
-def get_file_queues(num_threads, f):
-    # Splits the list of files into (almost) equal buckets of work per thread
-    queues = [ [] for i in range(num_threads) ]
+def get_file_queues(num_procs, f):
+    # Splits the list of files into (almost) equal buckets of work per proc
+    queues = [ [] for i in range(num_procs) ]
     i = 0
     for filename in f:
-        which_queue = i % num_threads
+        which_queue = i % num_procs
         queues[which_queue].append(filename.strip())
         i += 1
     return queues
@@ -68,7 +68,7 @@ def get_program_arguments():
             destination of the transfer operation.')
     parser.add_argument('transfer_info_f', type=str, help='File containing one file path on the remote host per line')
     parser.add_argument('password_file', type=str, help='When running in daemon mode, you are gonna want this.')
-    parser.add_argument('--num-threads', type=int, default=1, help='Number of threads to divy up lines .')
+    parser.add_argument('--num-procs', type=int, default=1, help='Number of procs to divy up lines .')
     parser.add_argument('--user', type=str, default=getpass.getuser(), help='User to execute the rsync as. \
             Defaults to current linux user.')
 
@@ -80,23 +80,23 @@ def main():
     logstr = f'Executing transfer with the following parameters:\n\
             \tRemote Host(s): {args.remotehosts}\n\
             \tLocal Directory (transfer destination): {args.localdirectory}\n\
-            \tNum Threads: {args.num_threads}\n\
+            \tNum Threads: {args.num_procs}\n\
             \tUser: {args.user}'
     logger.info(logstr)
 
     if not os.path.isdir(args.localdirectory):
         os.mkdir(args.localdirectory)
     
-    threads = []
-    with open(args.transfer_info_f) as f: # Obtain the work distribution and hand it to the threads
-        file_queues =  get_file_queues(args.num_threads, f)
-        logger.info(f'Starting {args.num_threads} threads')
-        for i in range(args.num_threads):
-            t = threading.Thread(target=do_processing, args=(i, file_queues[i], args))
-            t.start()
-            threads.append(t)
-    for t in threads:
-        t.join()
+    procs = []
+    with open(args.transfer_info_f) as f: # Obtain the work distribution and hand it to the procs
+        file_queues =  get_file_queues(args.num_procs, f)
+        logger.info(f'Starting {args.num_procs} procs')
+        for i in range(args.num_procs):
+            p = multiprocessing.Process(target=do_processing, args=(i, file_queues[i], args))
+            p.start()
+            procs.append(p)
+    for p in procs:
+        p.join()
 
 if __name__ == "__main__":
     main()

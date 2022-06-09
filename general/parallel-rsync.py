@@ -8,18 +8,21 @@ import logging
 import os
 import os.path
 import subprocess
-import multiprocessing
+from multiprodessing import Process, Queue
 
 logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', level=logging.INFO)
 logger = logging.getLogger()
 fail_logger = None
 
-def execute_transfer(tid, local_directory, remote_host, f_path, user, pwd_f):
+class Sentinel:
+    pass
+
+def execute_transfer(pid, local_directory, remote_host, transfer_path, user, pwd_f):
     module = 'LSSTUser'
-    remote_source = f'{user}@{remote_host}::{module}/{f_path}'
+    remote_source = f'{user}@{remote_host}::{module}/{transfer_path}'
     format_string = '--out-format=\"%o %m %i %n %l %C\"'
     pwd_arg = f'--password-file={pwd_f}'
-    logger.info(f'(tid:{tid}) Executing transfer of {f_path} from {remote_host} to {local_directory}\n\t\
+    logger.info(f'(pid:{pid}) Executing transfer of {transfer_path} from {remote_host} to {local_directory}\n\t\
             rsync --archive --relative --xattrs {pwd_arg} {format_string} {remote_source} {local_directory}')
     xfer_process = subprocess.Popen([
         'rsync',
@@ -32,7 +35,7 @@ def execute_transfer(tid, local_directory, remote_host, f_path, user, pwd_f):
         local_directory
     ], stdout=subprocess.PIPE)
     xfer_stdout, xfer_stderr = xfer_process.communicate()
-    logger.info(f'(tid:{tid}) {xfer_stdout.decode().strip()}')
+    logger.info(f'(pid:{pid}) {xfer_stdout.decode().strip()}')
     if xfer_stderr is not None:
         if fail_logger is None:
             fail_logger = logging.getLogger('fail_log')
@@ -41,16 +44,19 @@ def execute_transfer(tid, local_directory, remote_host, f_path, user, pwd_f):
 
         fail_logger.error(f'{xfer_stderr.decode().strip()}')
 
-def do_processing(tid, files, args):
+def do_processing(pid, transfer_queue, args):
     remote_hosts = args.remotehosts.split(',')
     i = 0
-    for f_path in files:
+    while True:
+        transfer_path = transfer_queue.get()
+        if isinstance(transfer_path, Sentinel):
+            return
         remote_host_index = i % len(remote_hosts) # Incrementally select the next host round-robin for load-balancing
-        execute_transfer(tid, args.localdirectory, remote_hosts[remote_host_index], f_path, args.user, args.password_file)
+        execute_transfer(pid, args.localdirectory, remote_hosts[remote_host_index], transfer_path, args.user, args.password_file)
         i += 1
 
 def get_file_queues(num_procs, f):
-    # Splits the list of files into (almost) equal buckets of work per proc
+    # Splits the list into (almost) equal buckets of work per proc
     queues = [ [] for i in range(num_procs) ]
     i = 0
     for filename in f:
@@ -88,13 +94,17 @@ def main():
         os.mkdir(args.localdirectory)
     
     procs = []
+    transfer_queue = Queue()
+    logger.info(f'Starting {args.num_procs} procs')
+    for i in range(args.num_procs):
+        p = Process(target=do_processing, args=(i, transfer_queue, args))
+        p.start()
+        procs.append(p)
     with open(args.transfer_info_f) as f: # Obtain the work distribution and hand it to the procs
-        file_queues =  get_file_queues(args.num_procs, f)
-        logger.info(f'Starting {args.num_procs} procs')
-        for i in range(args.num_procs):
-            p = multiprocessing.Process(target=do_processing, args=(i, file_queues[i], args))
-            p.start()
-            procs.append(p)
+        for item in f:
+            transfer_item = item.strip()
+            transfer_queue.put(transfer_item)
+    transfer_queue.put(Sentinel())
     for p in procs:
         p.join()
 

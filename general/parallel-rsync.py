@@ -8,7 +8,7 @@ import logging
 import os
 import os.path
 import subprocess
-from multiprodessing import Process, Queue
+from multiprocessing import Process, Queue
 
 logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', level=logging.INFO)
 logger = logging.getLogger()
@@ -50,20 +50,11 @@ def do_processing(pid, transfer_queue, args):
     while True:
         transfer_path = transfer_queue.get()
         if isinstance(transfer_path, Sentinel):
+            logger.info(f'PID: {pid} complete. Waiting to join.')
             return
         remote_host_index = i % len(remote_hosts) # Incrementally select the next host round-robin for load-balancing
         execute_transfer(pid, args.localdirectory, remote_hosts[remote_host_index], transfer_path, args.user, args.password_file)
         i += 1
-
-def get_file_queues(num_procs, f):
-    # Splits the list into (almost) equal buckets of work per proc
-    queues = [ [] for i in range(num_procs) ]
-    i = 0
-    for filename in f:
-        which_queue = i % num_procs
-        queues[which_queue].append(filename.strip())
-        i += 1
-    return queues
 
 def get_program_arguments():
     parser = argparse.ArgumentParser(description='Transfers a directory from a remote host(s) in parallel to a given local filesystem using rsync')
@@ -104,7 +95,9 @@ def main():
         for item in f:
             transfer_item = item.strip()
             transfer_queue.put(transfer_item)
-    transfer_queue.put(Sentinel())
+    logger.info('All transfer items produced to consumer processes. Dispatching Sentinel.')
+    for i in range(args.num_procs):
+        transfer_queue.put(Sentinel())
     for p in procs:
         p.join()
 

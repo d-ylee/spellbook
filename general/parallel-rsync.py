@@ -96,15 +96,17 @@ def main():
     start_from = 0
     fmarkfile_path = f'{args.transfer_info_f}.resume'
     try:
-        with open('fmarkfile_path', 'r') as fmarkfile:
+        logger.info(f'Checking {fmarkfile_path} for a line offset...')
+        with open(fmarkfile_path, 'r') as fmarkfile:
             start_from = int(fmarkfile.read())
     except OSError:
         pass
+    logger.info(f'Starting processing from {start_from} lines into the input file...')
 
     with open(args.transfer_info_f) as f: # Obtain the work distribution and hand it to the procs
         for i, item in enumerate(f):
             if i < start_from:
-                if i % 500 == 0:
+                if i < 10 or i % 500 == 0:
                     logger.info(f'Scrolling to where we left off...')
                 continue
             transfer_item = item.strip()

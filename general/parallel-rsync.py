@@ -77,7 +77,7 @@ def main():
     logstr = f'Executing transfer with the following parameters:\n\
             \tRemote Host(s): {args.remotehosts}\n\
             \tLocal Directory (transfer destination): {args.localdirectory}\n\
-            \tNum Threads: {args.num_procs}\n\
+            \tNum Procs: {args.num_procs}\n\
             \tUser: {args.user}'
     logger.info(logstr)
 
@@ -85,16 +85,34 @@ def main():
         os.mkdir(args.localdirectory)
     
     procs = []
-    transfer_queue = Queue()
+    transfer_queue = Queue(args.num_procs)
     logger.info(f'Starting {args.num_procs} procs')
     for i in range(args.num_procs):
         p = Process(target=do_processing, args=(i, transfer_queue, args))
         p.start()
         procs.append(p)
+
+    # See if there is a point in the input file we should resume at
+    start_from = 0
+    fmarkfile_path = f'{args.transfer_info_f}.resume'
+    try:
+        with open('fmarkfile_path', 'r') as fmarkfile:
+            start_from = int(fmarkfile.read())
+    except OSError:
+        pass
+
     with open(args.transfer_info_f) as f: # Obtain the work distribution and hand it to the procs
-        for item in f:
+        for i, item in enumerate(f):
+            if i < start_from:
+                if i % 500 == 0:
+                    logger.info(f'Scrolling to where we left off...')
+                continue
             transfer_item = item.strip()
             transfer_queue.put(transfer_item)
+            if i % 500 == 0:
+                with open(fmarkfile_path, 'w') as fmarkfile_f:
+                    fmarkfile_f.write(str(i))
+            
     logger.info('All transfer items produced to consumer processes. Dispatching Sentinel.')
     for i in range(args.num_procs):
         transfer_queue.put(Sentinel())

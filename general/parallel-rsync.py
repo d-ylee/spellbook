@@ -1,5 +1,6 @@
 # Parallel rsync Transfer Program
-# Transfers a directory from remote host(s) in parallel to a given local filesystem using rsync
+# Transfers files/directories from remote rsync servers load-balanced
+#     round-robin in parallel to a local filesystem using rsync
 # Brandon White, 2022
 
 import argparse
@@ -18,9 +19,9 @@ class Sentinel:
     pass
 
 def execute_transfer(pid, local_directory, remote_host, transfer_path, user, pwd_f):
-    module = 'LSSTUser'
+    module = 'LSSTUser' # TODO: Make this an actual argument
     remote_source = f'{user}@{remote_host}::{module}/{transfer_path}'
-    format_string = '--out-format=\"%o %m %i %n %l %C\"'
+    format_string = '--out-format=\"%o %m %i %n %l %C\"' # TODO: Make this an actual argument
     pwd_arg = f'--password-file={pwd_f}'
     logger.info(f'(pid:{pid}) Executing transfer of {transfer_path} from {remote_host} to {local_directory}\n\t\
             rsync --archive --relative --xattrs {pwd_arg} {format_string} {remote_source} {local_directory}')

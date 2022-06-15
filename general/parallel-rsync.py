@@ -13,12 +13,11 @@ from multiprocessing import Process, Queue
 
 logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', level=logging.INFO)
 logger = logging.getLogger()
-fail_logger = None
 
 class Sentinel:
     pass
 
-def execute_transfer(pid, local_directory, remote_host, transfer_path, user, pwd_f):
+def execute_transfer(pid, local_directory, remote_host, transfer_path, user, pwd_f, fail_logger):
     module = 'LSSTUser' # TODO: Make this an actual argument
     remote_source = f'{user}@{remote_host}::{module}/{transfer_path}'
     format_string = '--out-format=\"%o %m %i %n %l %C\"' # TODO: Make this an actual argument
@@ -37,15 +36,16 @@ def execute_transfer(pid, local_directory, remote_host, transfer_path, user, pwd
     ], stdout=subprocess.PIPE)
     xfer_stdout, xfer_stderr = xfer_process.communicate()
     logger.info(f'(pid:{pid}) {xfer_stdout.decode().strip()}')
-    if xfer_stderr is not None:
-        if fail_logger is None:
-            fail_logger = logging.getLogger('fail_log')
-            fh = logging.FileHandler('rsync-fail-log')
-            fail_logger.addHandler(fh)
-
-        fail_logger.error(f'{xfer_stderr.decode().strip()}')
+    if xfer_process.returncode != 0:
+        logger.info(f'!!!  TRANSFER FAILURE: {remote_source}')
+        fail_logger.error(transfer_path)
 
 def do_processing(pid, transfer_queue, args):
+    fail_log_path = os.path.join(args.fail_log_path, f'{os.path.basename(args.transfer_info_f)}.{pid}.error') 
+    fail_logger = logging.getLogger('fail_log')
+    fh = logging.FileHandler(fail_log_path)
+    fail_logger.addHandler(fh)
+
     remote_hosts = args.remotehosts.split(',')
     i = 0
     while True:
@@ -54,7 +54,7 @@ def do_processing(pid, transfer_queue, args):
             logger.info(f'PID: {pid} complete. Waiting to join.')
             return
         remote_host_index = i % len(remote_hosts) # Incrementally select the next host round-robin for load-balancing
-        execute_transfer(pid, args.localdirectory, remote_hosts[remote_host_index], transfer_path, args.user, args.password_file)
+        execute_transfer(pid, args.localdirectory, remote_hosts[remote_host_index], transfer_path, args.user, args.password_file, fail_logger)
         i += 1
 
 def get_program_arguments():
@@ -69,6 +69,8 @@ def get_program_arguments():
     parser.add_argument('--num-procs', type=int, default=1, help='Number of procs to divy up lines .')
     parser.add_argument('--user', type=str, default=getpass.getuser(), help='User to execute the rsync as. \
             Defaults to current linux user.')
+    parser.add_argument('--fail-log-path', type=str, default=f'/sdf/group/rubin/scratch/transfer_lists/error_files',
+            help='User to execute the rsync as. Defaults to current linux user.')
 
     args = parser.parse_args()
     return args

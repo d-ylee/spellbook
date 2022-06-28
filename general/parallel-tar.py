@@ -35,7 +35,7 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
         '--verbose' # let us know what's going on
     ], stdout=subprocess.PIPE)
     tar_stdout, tar_stderr = tar_process.communicate()
-    logger.info(f'(pid:{pid}) {tar_stdout.decode().strip()}')
+    logger.info(f'(pid:{pid}): TAR OUTPUT: {tar_stdout.decode().strip()}')
     if tar_process.returncode != 0:
         logger.info(f'!!!  TAR FAILURE  !!!')
         with open(tarlist_tempfile_path, 'r') as tarlist:
@@ -54,7 +54,6 @@ def do_processing(pid, tar_queue, args):
     fail_log_path = archive_dest_path + '.error' # Name of per-archive failure logs
 
     # Error logging
-    fail_logger = None # debug
     fail_logger = logging.getLogger('fail_log')
     fh = logging.FileHandler(fail_log_path)
     fail_logger.addHandler(fh)
@@ -62,7 +61,11 @@ def do_processing(pid, tar_queue, args):
     tar_rolling_size = 0 # Hold the accumulation of the list of files to be tarred in this batch
     while True:
         tar_info = tar_queue.get()
+        logger.info(f'pid {pid}: Got fileinfo {tar_info}')
         if isinstance(tar_info, Sentinel):
+            tarlist_tempfile.flush()
+            execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger) # DO THE TAR
+            tarlist_tempfile.close()
             logger.info(f'PID: {pid} complete. Waiting to join.')
             return
 
@@ -75,12 +78,13 @@ def do_processing(pid, tar_queue, args):
             b_file_path = file_path.encode(encoding='UTF-8')
             tarlist_tempfile.write(b_file_path)
 
-        if tar_rolling_size >= TARBALL_SIZE_LIMIT:
+        elif tar_rolling_size >= TARBALL_SIZE_LIMIT:
+            # Flush I/O buffer to file
+            tarlist_tempfile.flush()
             try:
-                # Flush I/O buffer to file
-                tarlist_tempfile.flush()
                 execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger) # DO THE TAR
             except Exception:
+                execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger) # DO THE TAR
                 tarlist_tempfile.close() # Clean up if we die
             tarlist_tempfile.close() # Close and delete tarlist upon successfull tar
             tarlist_tempfile = tempfile.NamedTemporaryFile(prefix=args.tar_prefix, dir=args.tar_dest_dir) # Open up the next tempfile
@@ -90,6 +94,8 @@ def do_processing(pid, tar_queue, args):
             b_file_path = file_path.encode(encoding='UTF-8')
             tarlist_tempfile.write(b_file_path)
             tar_rolling_size = file_size # Reset the rolling sum, add the file that can't fit to the new list
+        else:
+            logger.error('Uh, this should not happen.')
 
 def get_program_arguments():
     parser = argparse.ArgumentParser(description='Transfers a directory from a remote host(s) in parallel to a given local filesystem using rsync')
@@ -132,6 +138,7 @@ def main():
                 continue
             tar_item = item.strip()
             tar_queue.put(tar_item)
+            logger.info(f'PUSHED: {tar_item}')
             if i % 500 == 0:
                 with open(fmarkfile_path, 'w') as fmarkfile_f:
                     fmarkfile_f.write(str(i))

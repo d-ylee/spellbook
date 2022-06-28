@@ -27,11 +27,12 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
     tar_process = subprocess.Popen([
         'tar',
         '--create', # --preserve-permissions is implied by execution as a superuser
-        f'--file={archive_dest_path}'
+        f'--file={archive_dest_path}',
+        f'--files-from={tarlist_tempfile_path}',
         '--atime-preserve', # preserve access times 
         '--dereference', # Follow symlinks, and build their referents into the tarchive
-        '--gzip',
-        '--verbose'
+        '--gzip', # PHENOMENAL COSMIC POWER! itty bitty living space
+        '--verbose' # let us know what's going on
     ], stdout=subprocess.PIPE)
     tar_stdout, tar_stderr = tar_process.communicate()
     logger.info(f'(pid:{pid}) {tar_stdout.decode().strip()}')
@@ -40,15 +41,16 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
         with open(tarlist_tempfile_path, 'r') as tarlist:
             for missed_file in tarlist:
                 logger.error(f'Failed to include file {missed_file} in archive {archive_dest_path}')
-                fail_logger.error(str.encode(missing_file, encoding='UTF-8'))
+                fail_logger.error(missing_file.encode(encoding='UTF-8'))
 
 def do_processing(pid, tar_queue, args):
     # Create a tempfile for storing the accumulating list of files to be tarred
     tarlist_tempfile = tempfile.NamedTemporaryFile(prefix=args.tar_prefix, dir=args.tar_dest_dir) 
-
-    # Setup logging for failure on a per-tempfile basis
     tarlist_tempfile_path = tarlist_tempfile.name # absolute path to NamedTemporaryFile
     archive_dest_path = tarlist_tempfile_path + '.tar.gz' # Name of final archive output by the program
+    logger.info(f'Opened new tarlist at: {tarlist_tempfile_path}')
+
+    # Setup logging for failure on a per-tempfile basis
     fail_log_path = archive_dest_path + '.error' # Name of per-archive failure logs
 
     # Error logging  TODO
@@ -66,22 +68,26 @@ def do_processing(pid, tar_queue, args):
 
         tar_info = tar_info.split()
         file_size = int(tar_info[0])
-        file_path = tar_info[1]
+        file_path = tar_info[1] + '\n'
 
         if tar_rolling_size < TARBALL_SIZE_LIMIT:
             tar_rolling_size += file_size
-            b_file_path = str.encode(file_path + '\n', encoding='UTF-8')
+            b_file_path = file_path.encode(encoding='UTF-8')
             tarlist_tempfile.write(b_file_path)
 
         if tar_rolling_size >= TARBALL_SIZE_LIMIT:
-            tarlist_tempfile_path = os.path.join(args.tar_dest_dir, tarlist_tempfile.name)
             try:
+                # Flush I/O buffer to file
+                tarlist_tempfile.flush()
                 execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger) # DO THE TAR
             except Exception:
                 tarlist_tempfile.close() # Clean up if we die
             tarlist_tempfile.close() # Close and delete tarlist upon successfull tar
             tarlist_tempfile = tempfile.NamedTemporaryFile(prefix=args.tar_prefix, dir=args.tar_dest_dir) # Open up the next tempfile
-            b_file_path = str.encode(file_path.join('\n'), encoding='UTF-8')
+            tarlist_tempfile_path = tarlist_tempfile.name
+            archive_dest_path = tarlist_tempfile_path + '.tar.gz' # Name of final archive output by the program
+            logger.info(f'Opened new tarlist at: {tarlist_tempfile_path}')
+            b_file_path = file_path.encode(encoding='UTF-8')
             tarlist_tempfile.write(b_file_path)
             tar_rolling_size = file_size # Reset the rolling sum, add the file that can't fit to the new list
 
@@ -121,7 +127,7 @@ def main():
     with open(args.file_info_f) as f:
         for i, item in enumerate(f):
             if i < start_from:
-                if i < 10 or i % 500 == 0:
+                if i < 10 or i % 25000 == 0:
                     logger.info(f'Scrolling to where we left off...')
                 continue
             tar_item = item.strip()

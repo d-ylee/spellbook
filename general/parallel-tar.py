@@ -42,7 +42,7 @@ def execute_tar(pid, tarlist_tempfile_path, fail_logger):
 
 def do_processing(pid, tar_queue, args):
     # Create a tempfile for storing the accumulating list of files to be tarred
-    tarlist_tempfile = tempfile.TemporaryFile(prefix=args.tar_prefix, dir=args.tar_dir) 
+    tarlist_tempfile = tempfile.TemporaryFile(prefix=args.tar_prefix, dir=args.tar_dest_dir) 
 
     # Setup logging for failure on a per-tempfile basis
     fail_log_path = tarlist_tempfile.name, + '.error'
@@ -65,10 +65,10 @@ def do_processing(pid, tar_queue, args):
 	    tar_rolling_size += file_size
             tmpfile.write(file_path + '\n')
 	else:
-            tarlist_tempfile_path = os.path.join(args.tar_dir, tarlist_tempfile.name)
+            tarlist_tempfile_path = os.path.join(args.tar_dest_dir, tarlist_tempfile.name)
 	    execute_tar(pid, tarlist_tempfile_path, fail_logger) # DO THE TAR
             tarlist_tempfile.close() # Close and delete tarlist upon successfull tar
-            tarlist_tempfile = tempfile.TemporaryFile(prefix=args.tar_prefix, dir=args.tar_dir) # Open up the next tempfile
+            tarlist_tempfile = tempfile.TemporaryFile(prefix=args.tar_prefix, dir=args.tar_dest_dir) # Open up the next tempfile
             tar_rolling_size = 0 # Reset the rolling sum
 
 def get_program_arguments():
@@ -76,7 +76,7 @@ def get_program_arguments():
     parser.add_argument('file_info_f', type=str, help='File containing one file path on the remote host per line')
     parser.add_argument('--num-procs', type=int, default=1, help='Number of procs to divy up lines .')
     parser.add_argument('--tar-prefix', type=str, default='tar_', help='Name to append to tempfiles used to track files to be tarred in a batch.')
-    parser.add_argument('--tar-dir', type=str, default='/tmp', help='Number of procs to divy up lines.')
+    parser.add_argument('--tar-dest-dir', type=str, default='/tmp', help='Number of procs to divy up lines.')
     args = parser.parse_args()
     return args
 

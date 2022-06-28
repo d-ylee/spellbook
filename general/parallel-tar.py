@@ -1,6 +1,6 @@
-# Parallel rsync Transfer Program
-# Transfers files/directories from remote rsync servers load-balanced
-#     round-robin in parallel to a local filesystem using rsync
+# tar Program
+# Given an input file consisting of file sizes, and paths to files (can be relative) 
+#      create a tar archive in the destination from every TARRBALL_SIZE_LIMIT files 
 # Brandon White, 2022
 
 import argparse
@@ -22,32 +22,34 @@ TARBALL_SIZE_LIMIT = ONE_TERABYTE
 class Sentinel:
     pass
 
-#def execute_transfer(pid, local_directory, remote_host, transfer_path, user, pwd_f, fail_logger):
-#    module = 'LSSTUser' # TODO: Make this an actual argument
-#    remote_source = f'{user}@{remote_host}::{module}/{transfer_path}'
-#    format_string = '--out-format=\"%o %m %i %n %l %C\"' # TODO: Make this an actual argument
-#    pwd_arg = f'--password-file={pwd_f}'
-#    logger.info(f'(pid:{pid}) Executing transfer of {transfer_path} from {remote_host} to {local_directory}\n\t\
-#            rsync --archive --relative --xattrs {pwd_arg} {format_string} {remote_source} {local_directory}')
-#    xfer_process = subprocess.Popen([
-#        'rsync',
-#        '--archive',
-#        '--relative',
-#        '--xattrs',
-#        pwd_arg,
-#        format_string,
-#        remote_source,
-#        local_directory
-#    ], stdout=subprocess.PIPE)
-#    xfer_stdout, xfer_stderr = xfer_process.communicate()
-#    logger.info(f'(pid:{pid}) {xfer_stdout.decode().strip()}')
-#    if xfer_process.returncode != 0:
-#        logger.info(f'!!!  TRANSFER FAILURE: {remote_source}')
-#        fail_logger.error(transfer_path)
-def execute_tar(pid, tmp_tarfile_input_list):
-	pass
+def execute_tar(pid, tarlist_tempfile_path, fail_logger):
+    logger.info(f'(pid:{pid}) Executing tar of files specified in {tarfile_path}')
+    tar_process = subprocess.Popen([
+        'tar',
+        '--create', # --preserve-permissions is implied by execution as a superuser
+        '--atime-preserve', # preserve access times 
+        '--dereference', # Follow symlinks, and build their referents into the tarchive
+        '--gzip',
+        '--verbose'
+    ], stdout=subprocess.PIPE)
+    tar_stdout, tar_stderr = tar_process.communicate()
+    logger.info(f'(pid:{pid}) {xfer_stdout.decode().strip()}')
+    if xfer_process.returncode != 0:
+        logger.info(f'!!!  TAR FAILURE  !!!')
+        with open(tarlist_tempfile_path, 'r') as tarlist:
+            for missed_file in tarlist:
+                fail_logger.error(missed_file)
 
 def do_processing(pid, tar_queue, args):
+    # Create a tempfile for storing the accumulating list of files to be tarred
+    tarlist_tempfile = tempfile.TemporaryFile(prefix=args.tar_prefix, dir=args.tar_dir) 
+
+    # Setup logging for failure on a per-tempfile basis
+    fail_log_path = tarlist_tempfile.name, + '.error'
+    fail_logger = logging.getLogger('fail_log')
+    fh = logging.FileHandler(fail_log_path)
+    fail_logger.addHandler(fh)
+
     tar_rolling_size = 0 # Hold the accumulation of the list of files to be tarred in this batch
     while True:
         tar_info = tar_queue.get()
@@ -59,18 +61,22 @@ def do_processing(pid, tar_queue, args):
             logger.info(f'PID: {pid} complete. Waiting to join.')
             return
 
-	
 	if tar_rolling_size < TARBALL_SIZE_LIMIT:
 	    tar_rolling_size += file_size
-            tmpfile.write()
+            tmpfile.write(file_path + '\n')
 	else:
-	    execute_tar(pid, path)
-            tar_rolling_size = 0
+            tarlist_tempfile_path = os.path.join(args.tar_dir, tarlist_tempfile.name)
+	    execute_tar(pid, tarlist_tempfile_path, fail_logger) # DO THE TAR
+            tarlist_tempfile.close() # Close and delete tarlist upon successfull tar
+            tarlist_tempfile = tempfile.TemporaryFile(prefix=args.tar_prefix, dir=args.tar_dir) # Open up the next tempfile
+            tar_rolling_size = 0 # Reset the rolling sum
 
 def get_program_arguments():
     parser = argparse.ArgumentParser(description='Transfers a directory from a remote host(s) in parallel to a given local filesystem using rsync')
     parser.add_argument('file_info_f', type=str, help='File containing one file path on the remote host per line')
     parser.add_argument('--num-procs', type=int, default=1, help='Number of procs to divy up lines .')
+    parser.add_argument('--tar-prefix', type=str, default='tar_', help='Name to append to tempfiles used to track files to be tarred in a batch.')
+    parser.add_argument('--tar-dir', type=str, default='/tmp', help='Number of procs to divy up lines.')
     args = parser.parse_args()
     return args
 

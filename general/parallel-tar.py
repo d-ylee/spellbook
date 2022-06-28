@@ -53,7 +53,7 @@ def do_processing(pid, tar_queue, args):
     # Setup logging for failure on a per-tempfile basis
     fail_log_path = archive_dest_path + '.error' # Name of per-archive failure logs
 
-    # Error logging  TODO
+    # Error logging
     fail_logger = None # debug
     fail_logger = logging.getLogger('fail_log')
     fh = logging.FileHandler(fail_log_path)

@@ -25,6 +25,7 @@ class Sentinel:
 def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
     logger.info(f'(pid:{pid}) Executing tar of files specified in {tarlist_tempfile_path} and compressing to archive {archive_dest_path}')
     tar_process = subprocess.Popen([
+        'sudo',
         'tar',
         '--create', # --preserve-permissions is implied by execution as a superuser
         f'--file={archive_dest_path}',

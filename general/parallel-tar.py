@@ -61,7 +61,6 @@ def do_processing(pid, tar_queue, args):
     tar_rolling_size = 0 # Hold the accumulation of the list of files to be tarred in this batch
     while True:
         tar_info = tar_queue.get()
-        logger.info(f'pid {pid}: Got fileinfo {tar_info}')
         if isinstance(tar_info, Sentinel):
             tarlist_tempfile.flush()
             execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger) # DO THE TAR
@@ -138,7 +137,6 @@ def main():
                 continue
             tar_item = item.strip()
             tar_queue.put(tar_item)
-            logger.info(f'PUSHED: {tar_item}')
             if i % 500 == 0:
                 with open(fmarkfile_path, 'w') as fmarkfile_f:
                     fmarkfile_f.write(str(i))

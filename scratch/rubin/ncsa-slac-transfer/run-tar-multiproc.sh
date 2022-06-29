@@ -1,6 +1,5 @@
 #!/bin/bash
 
-parallel_tar_script=/sdf/home/b/bjwhite/spellbook/general/parallel-tar.py
 parallel_tar_script=/home/bjwhite/spellbook/general/parallel-tar.py
 echo $(date)
 python3 ${parallel_tar_script} \

@@ -42,7 +42,7 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
         with open(tarlist_tempfile_path, 'r') as tarlist:
             for missed_file in tarlist:
                 logger.error(f'Failed to include file {missed_file} in archive {archive_dest_path}')
-                fail_logger.error(missing_file.encode(encoding='UTF-8'))
+                fail_logger.error(missed_file.encode(encoding='UTF-8'))
 
 def do_processing(pid, tar_queue, args):
     # Create a tempfile for storing the accumulating list of files to be tarred

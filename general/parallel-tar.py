@@ -9,6 +9,7 @@ import logging
 import math
 import os
 import os.path
+import shutil
 import subprocess
 import tempfile
 from multiprocessing import Process, Queue
@@ -43,6 +44,13 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
             for missed_file in tarlist:
                 logger.error(f'Failed to include file {missed_file} in archive {archive_dest_path}')
                 fail_logger.error(missed_file.encode(encoding='UTF-8'))
+    else:
+        # Move file specfied by archive_dest_path to final destination
+        current_dir = os.path.dirname(archive_dest_path)
+        completed_dir = os.path.join(current_dir, 'completed')
+        if not os.path.isdir(completed_dir):
+            os.mkdir(completed_dir)
+        shutil.move(archive_dest_path, completed_dir)
 
 def do_processing(pid, tar_queue, args):
     # Create a tempfile for storing the accumulating list of files to be tarred

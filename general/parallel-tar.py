@@ -25,14 +25,14 @@ class Sentinel:
 def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
     logger.info(f'(pid:{pid}) Executing tar of files specified in {tarlist_tempfile_path} and compressing to archive {archive_dest_path}')
     tar_process = subprocess.Popen([
-        'sudo',
+        #'sudo',
         'tar',
         '--create', # --preserve-permissions is implied by execution as a superuser
         f'--file={archive_dest_path}',
         f'--files-from={tarlist_tempfile_path}',
-        '--atime-preserve', # preserve access times 
+        #'--atime-preserve', # preserve access times
         '--dereference', # Follow symlinks, and build their referents into the tarchive
-        '--gzip', # PHENOMENAL COSMIC POWER! itty bitty living space
+        #'--gzip', # PHENOMENAL COSMIC POWER! itty bitty living space
         '--verbose' # let us know what's going on
     ], stdout=subprocess.PIPE)
     tar_stdout, tar_stderr = tar_process.communicate()
@@ -48,7 +48,7 @@ def do_processing(pid, tar_queue, args):
     # Create a tempfile for storing the accumulating list of files to be tarred
     tarlist_tempfile = tempfile.NamedTemporaryFile(prefix=args.tar_prefix, dir=args.tar_dest_dir) 
     tarlist_tempfile_path = tarlist_tempfile.name # absolute path to NamedTemporaryFile
-    archive_dest_path = tarlist_tempfile_path + '.tar.gz' # Name of final archive output by the program
+    archive_dest_path = tarlist_tempfile_path + '.tar' # Name of final archive output by the program
     logger.info(f'Opened new tarlist at: {tarlist_tempfile_path}')
 
     # Setup logging for failure on a per-tempfile basis
@@ -89,7 +89,7 @@ def do_processing(pid, tar_queue, args):
             tarlist_tempfile.close() # Close and delete tarlist upon successfull tar
             tarlist_tempfile = tempfile.NamedTemporaryFile(prefix=args.tar_prefix, dir=args.tar_dest_dir) # Open up the next tempfile
             tarlist_tempfile_path = tarlist_tempfile.name
-            archive_dest_path = tarlist_tempfile_path + '.tar.gz' # Name of final archive output by the program
+            archive_dest_path = tarlist_tempfile_path + '.tar' # Name of final archive output by the program
             logger.info(f'Opened new tarlist at: {tarlist_tempfile_path}')
             b_file_path = file_path.encode(encoding='UTF-8')
             tarlist_tempfile.write(b_file_path)

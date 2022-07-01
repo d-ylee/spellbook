@@ -5,6 +5,7 @@
 
 import argparse
 import getpass
+import hashlib
 import logging
 import math
 import os
@@ -22,6 +23,13 @@ TARBALL_SIZE_LIMIT = ONE_TERABYTE
 
 class Sentinel:
     pass
+
+def get_hash_digits(string_to_hash):
+    # Return a 2 digit hash to distribute the result files
+    md5 = hashlib.md5(string_to_hash.encode()) # ASCII encoding should be good enough for our purposes
+    digits = result.hexdigest()[:2]
+    return digits
+
 
 def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
     logger.info(f'(pid:{pid}) Executing tar of files specified in {tarlist_tempfile_path} and compressing to archive {archive_dest_path}')
@@ -47,10 +55,11 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
     else:
         # Move file specfied by archive_dest_path to final destination
         current_dir = os.path.dirname(archive_dest_path)
-        completed_dir = os.path.join(current_dir, 'completed')
-        if not os.path.isdir(completed_dir):
-            os.mkdir(completed_dir)
-        shutil.move(archive_dest_path, completed_dir)
+        completed_subdir_digits = get_hash_digits(archive_dest_path)
+        completed_dir = os.path.join(current_dir, 'completed', completed_subdir_digits)
+        if not os.path.isdir(completed_subdir):
+            os.mkdir(completed_subdir)
+        shutil.move(archive_dest_path, completed_subdir)
 
 def do_processing(pid, tar_queue, args):
     # Create a tempfile for storing the accumulating list of files to be tarred

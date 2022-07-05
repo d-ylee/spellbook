@@ -156,8 +156,12 @@ def main():
             tar_item = item.strip()
             tar_queue.put(tar_item)
             if i % 500 == 0:
-                with open(fmarkfile_path, 'w') as fmarkfile_f:
-                    fmarkfile_f.write(str(i))
+                temp_f = tempfile.NamedTemporaryFile(mode='wt', delete=False)
+                temp_f.write(str(i))
+                temp_fname = temp_f.name
+                temp_f.close()
+                shutil.copy(temp_fname, fmarkfile_path)
+                os.remove(temp_fname)
             
     logger.info('All transfer items produced to consumer processes. Dispatching Sentinel.')
     for i in range(args.num_procs):

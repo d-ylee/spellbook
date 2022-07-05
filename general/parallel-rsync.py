@@ -8,7 +8,9 @@ import getpass
 import logging
 import os
 import os.path
+import shutil
 import subprocess
+import tempfile
 from multiprocessing import Process, Queue
 
 logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', level=logging.INFO)
@@ -115,8 +117,12 @@ def main():
             transfer_item = item.strip()
             transfer_queue.put(transfer_item)
             if i % 500 == 0:
-                with open(fmarkfile_path, 'w') as fmarkfile_f:
-                    fmarkfile_f.write(str(i))
+                temp_f = tempfile.NamedTemporaryFile(mode='wt', delete=False)
+                temp_f.write(str(i))
+                temp_fname = temp_f.name
+                temp_f.close()
+                shutil.copy(temp_fname, fmarkfile_path)
+                os.remove(temp_fname)
             
     logger.info('All transfer items produced to consumer processes. Dispatching Sentinel.')
     for i in range(args.num_procs):

@@ -148,20 +148,23 @@ def main():
     logger.info(f'Starting processing from {start_from} lines into the input file...')
 
     with open(args.file_info_f) as f:
-        for i, item in enumerate(f):
-            if i < start_from:
-                if i < 10 or i % 25000 == 0:
-                    logger.info(f'Scrolling to where we left off...')
-                continue
-            tar_item = item.strip()
-            tar_queue.put(tar_item)
-            if i % 500 == 0:
-                temp_f = tempfile.NamedTemporaryFile(mode='wt', delete=False)
-                temp_f.write(str(i))
-                temp_fname = temp_f.name
-                temp_f.close()
-                shutil.copy(temp_fname, fmarkfile_path)
-                os.remove(temp_fname)
+        try:
+            for i, item in enumerate(f):
+                if i < start_from:
+                    if i < 10 or i % 25000 == 0:
+                        logger.info(f'Scrolling to where we left off...')
+                    continue
+                tar_item = item.strip()
+                tar_queue.put(tar_item)
+                if i % 500 == 0:
+                    temp_f = tempfile.NamedTemporaryFile(mode='wt', delete=False)
+                    temp_f.write(str(i))
+                    temp_fname = temp_f.name
+                    temp_f.close()
+                    shutil.copy(temp_fname, fmarkfile_path)
+                    os.remove(temp_fname)
+        except UnicodeDecodeError as ex:
+            logger.info(f'UNICODE ERROR: {i}, {f}, {str(ex)}')
             
     logger.info('All transfer items produced to consumer processes. Dispatching Sentinel.')
     for i in range(args.num_procs):

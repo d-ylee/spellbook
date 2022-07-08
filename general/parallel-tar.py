@@ -10,6 +10,7 @@ import logging
 import math
 import os
 import os.path
+import pathlib
 import shutil
 import subprocess
 import tempfile
@@ -56,9 +57,8 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
         # Move file specfied by archive_dest_path to final destination
         current_dir = os.path.dirname(archive_dest_path)
         completed_subdir_digits = get_hash_digits(archive_dest_path)
-        completed_dir = os.path.join(current_dir, 'completed', completed_subdir_digits)
-        if not os.path.isdir(completed_subdir):
-            os.mkdir(completed_subdir)
+        completed_subdir = os.path.join(current_dir, 'completed', completed_subdir_digits)
+        pathlib.Path(completed_subdir).mkdir(parents=True, exist_ok=True)
         shutil.move(archive_dest_path, completed_subdir)
 
 def do_processing(pid, tar_queue, args):

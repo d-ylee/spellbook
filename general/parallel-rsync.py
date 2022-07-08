@@ -3,6 +3,10 @@
 #     round-robin in parallel to a local filesystem using rsync
 # Brandon White, 2022
 
+# Note: This will currently only with with an rsync daemon running on the remote end.
+# See the definition of execute_transfer(), as it used :: in building the source
+# transfer resource locator (remote_source)
+
 import argparse
 import getpass
 import logging

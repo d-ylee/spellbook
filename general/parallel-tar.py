@@ -27,7 +27,7 @@ class Sentinel:
 def get_hash_digits(string_to_hash):
     # Return a 2 digit hash to distribute the result files
     md5 = hashlib.md5(string_to_hash.encode()) # ASCII encoding should be good enough for our purposes
-    digits = result.hexdigest()[:2]
+    digits = md5.hexdigest()[:2]
     return digits
 
 

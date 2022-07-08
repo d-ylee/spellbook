@@ -14,7 +14,9 @@ import pathlib
 import shutil
 import subprocess
 import tempfile
-from multiprocessing import Process, Queue
+from multiprocessing import Queue
+
+from util import Sentinel, start_processes, end_processes, get_start_offset, set_logger, at_offset, write_offset_file
 
 logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', level=logging.INFO)
 logger = logging.getLogger()
@@ -22,15 +24,11 @@ logger = logging.getLogger()
 ONE_TERABYTE = int(math.pow(1024, 4))
 TARBALL_SIZE_LIMIT = ONE_TERABYTE
 
-class Sentinel:
-    pass
-
 def get_hash_digits(string_to_hash):
     # Return a 2 digit hash to distribute the result files
     md5 = hashlib.md5(string_to_hash.encode()) # ASCII encoding should be good enough for our purposes
     digits = md5.hexdigest()[:2]
     return digits
-
 
 def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
     logger.info(f'(pid:{pid}) Executing tar of files specified in {tarlist_tempfile_path} and compressing to archive {archive_dest_path}')
@@ -125,54 +123,29 @@ def get_program_arguments():
     return args
 
 def main():
+    set_logger(logger)
     args = get_program_arguments()
     logstr = f'Executing tar operation with tarball size limit: {TARBALL_SIZE_LIMIT}'
     logger.info(logstr)
 
-    procs = []
     tar_queue = Queue(args.num_procs)
     logger.info(f'Starting {args.num_procs} procs')
-    for i in range(args.num_procs):
-        p = Process(target=do_processing, args=(i, tar_queue, args))
-        p.start()
-        procs.append(p)
+    procs = start_processes(tar_queue, do_processing, args.num_procs, args)
 
     # See if there is a point in the input file we should resume at
-    start_from = 0
-    fmarkfile_path = f'{args.file_info_f}.resume'
-    if not args.ignore_checkpoint:
-        try:
-            logger.info(f'Checking {fmarkfile_path} for a line offset...')
-            with open(fmarkfile_path, 'r') as fmarkfile:
-                start_from = int(fmarkfile.read())
-        except OSError:
-            pass
+    start_from, offset_file_path = get_start_offset(args.file_info_f, args.ignore_checkpoint)
     logger.info(f'Starting processing from {start_from} lines into the input file...')
 
     with open(args.file_info_f) as f:
-        try:
-            for i, item in enumerate(f):
-                if i < start_from:
-                    if i < 10 or i % 25000 == 0:
-                        logger.info(f'Scrolling to where we left off...')
-                    continue
-                tar_item = item.strip()
-                tar_queue.put(tar_item)
-                if i % 500 == 0:
-                    temp_f = tempfile.NamedTemporaryFile(mode='wt', delete=False)
-                    temp_f.write(str(i))
-                    temp_fname = temp_f.name
-                    temp_f.close()
-                    shutil.copy(temp_fname, fmarkfile_path)
-                    os.remove(temp_fname)
-        except UnicodeDecodeError as ex:
-            logger.info(f'UNICODE ERROR: {i}, {f}, {str(ex)}')
+        for i, item in enumerate(f):
+            while not at_offset(i, start_from, f):
+                continue
+            tar_item = item.strip()
+            tar_queue.put(tar_item)
+            write_offset_file(i, offset_file_path) # TODO: should probably do after the tar completes instead
             
     logger.info('All transfer items produced to consumer processes. Dispatching Sentinel.')
-    for i in range(args.num_procs):
-        tar_queue.put(Sentinel())
-    for p in procs:
-        p.join()
+    end_processes(tar_queue, procs)
 
 if __name__ == "__main__":
     main()

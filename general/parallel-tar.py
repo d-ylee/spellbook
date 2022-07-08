@@ -120,6 +120,7 @@ def get_program_arguments():
     parser.add_argument('--num-procs', type=int, default=1, help='Number of procs to divy up lines .')
     parser.add_argument('--tar-prefix', type=str, default='tar_', help='Name to append to tempfiles used to track files to be tarred in a batch.')
     parser.add_argument('--tar-dest-dir', type=str, default='/tmp', help='Number of procs to divy up lines.')
+    parser.add_argument('--ignore-checkpoint', default=False, action='store_true')
     args = parser.parse_args()
     return args
 
@@ -139,12 +140,13 @@ def main():
     # See if there is a point in the input file we should resume at
     start_from = 0
     fmarkfile_path = f'{args.file_info_f}.resume'
-    try:
-        logger.info(f'Checking {fmarkfile_path} for a line offset...')
-        with open(fmarkfile_path, 'r') as fmarkfile:
-            start_from = int(fmarkfile.read())
-    except OSError:
-        pass
+    if not args.ignore_checkpoint:
+        try:
+            logger.info(f'Checking {fmarkfile_path} for a line offset...')
+            with open(fmarkfile_path, 'r') as fmarkfile:
+                start_from = int(fmarkfile.read())
+        except OSError:
+            pass
     logger.info(f'Starting processing from {start_from} lines into the input file...')
 
     with open(args.file_info_f) as f:

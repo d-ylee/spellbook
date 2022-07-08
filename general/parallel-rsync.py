@@ -69,6 +69,7 @@ def get_program_arguments():
     parser.add_argument('transfer_info_f', type=str, help='File containing one file path on the remote host per line')
     parser.add_argument('password_file', type=str, help='When running in daemon mode, you are gonna want this.')
     parser.add_argument('--num-procs', type=int, default=1, help='Number of procs to divy up lines .')
+    parser.add_argument('--ignore-checkpoint', default=False, action='store_true')
     parser.add_argument('--user', type=str, default=getpass.getuser(), help='User to execute the rsync as. \
             Defaults to current linux user.')
     parser.add_argument('--fail-log-path', type=str, default=f'/sdf/group/rubin/scratch/transfer_lists/error_files',
@@ -100,12 +101,13 @@ def main():
     # See if there is a point in the input file we should resume at
     start_from = 0
     fmarkfile_path = f'{args.transfer_info_f}.resume'
-    try:
-        logger.info(f'Checking {fmarkfile_path} for a line offset...')
-        with open(fmarkfile_path, 'r') as fmarkfile:
-            start_from = int(fmarkfile.read())
-    except OSError:
-        pass
+    if not args.ignore_checkpoint:
+        try:
+            logger.info(f'Checking {fmarkfile_path} for a line offset...')
+            with open(fmarkfile_path, 'r') as fmarkfile:
+                start_from = int(fmarkfile.read())
+        except OSError:
+            pass
     logger.info(f'Starting processing from {start_from} lines into the input file...')
 
     with open(args.transfer_info_f) as f: # Obtain the work distribution and hand it to the procs

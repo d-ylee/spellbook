@@ -20,7 +20,7 @@ def write_offset_file(i, offset_file_path, modulo=500):
 def at_offset(i, start_from, f, frequency=25000):
     if i < start_from:
         if i < 10 or i % frequency == 0:
-            logger.info(f'Seeking to offset...')
+            logger.info(f'Seeking to offset {i} / {start_from}...')
             return False
     return True
 

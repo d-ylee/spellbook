@@ -5,7 +5,6 @@
 
 import argparse
 import getpass
-import hashlib
 import logging
 import math
 import os

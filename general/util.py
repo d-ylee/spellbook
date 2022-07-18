@@ -1,3 +1,4 @@
+import hashlib
 import os
 import shutil
 import tempfile
@@ -7,6 +8,12 @@ logger = None
 
 class Sentinel:
     pass
+
+def get_hash_digits(string_to_hash):
+    # Return a 2 digit hash to distribute the result files
+    md5 = hashlib.md5(string_to_hash.encode()) # ASCII encoding should be good enough for our purposes
+    digits = md5.hexdigest()[:2]
+    return digits
 
 def write_offset_file(i, offset_file_path, modulo=500):
     if i % modulo == 0: # Only do this every so often

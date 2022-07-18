@@ -17,10 +17,10 @@ def write_offset_file(i, offset_file_path, modulo=500):
         shutil.copy(temp_fname, offset_file_path)
         os.remove(temp_fname)
 
-def at_offset(i, start_from, f, frequency=25000):
+def at_offset(i, start_from, frequency=100000):
     if i < start_from:
-        if i < 10 or i % frequency == 0:
-            logger.info(f'Seeking to offset...')
+        if i < 3 or i % frequency == 0:
+            logger.info(f'Seeking to offset {i} / {start_from}...')
             return False
     return True
 

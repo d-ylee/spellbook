@@ -138,7 +138,7 @@ def main():
 
     with open(args.file_info_f) as f:
         for i, item in enumerate(f):
-            while not at_offset(i, start_from, f):
+            if not at_offset(i, start_from):
                 continue
             tar_item = item.strip()
             tar_queue.put(tar_item)

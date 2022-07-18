@@ -30,7 +30,6 @@ def execute_transfer(pid, local_directory, remote_host, transfer_path, user, pwd
     xfer_process = subprocess.Popen([
         'rsync',
         '--archive',
-        '--remove-source-files',
         #'--relative',
         '--xattrs',
         pwd_arg,

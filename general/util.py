@@ -5,6 +5,7 @@ import tempfile
 from multiprocessing import Process
 
 logger = None
+OFFSET_MODULO=500
 
 class Sentinel:
     pass
@@ -15,7 +16,7 @@ def get_hash_digits(string_to_hash):
     digits = md5.hexdigest()[:2]
     return digits
 
-def write_offset_file(i, offset_file_path, modulo=500):
+def write_offset_file(i, offset_file_path, modulo=OFFSET_MODULO):
     if i % modulo == 0: # Only do this every so often
         temp_f = tempfile.NamedTemporaryFile(mode='wt', delete=False)
         temp_f.write(str(i))

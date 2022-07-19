@@ -24,7 +24,8 @@ logger = logging.getLogger()
 
 def execute_listing(pid, archive_path, listing_dest_path, fail_logger):
     logger.info(f'(pid:{pid}) Executing listing of files specified in {archive_path} and sending to file {listing_dest_path}')
-    with open(listing_dest_path) as final_listing_file:
+    with open(listing_dest_path, 'w') as final_listing_file:
+        logger.info(f'listing_dest_path: listing_dest_path')
         tar_process = subprocess.Popen([
             'tar',
             '--list',
@@ -33,15 +34,11 @@ def execute_listing(pid, archive_path, listing_dest_path, fail_logger):
         ], stdout=subprocess.PIPE)
         # We only need the file size and path for our purposes
         awk_process = subprocess.Popen(
-            ['awk', '{print $3"    "$6}', '-o', f'{listing_dest_path}'],
+            ['awk', '{print $3"    "$6}'],
             stdin=tar_process.stdout,
             stdout=final_listing_file
         )
-        #tar_stdout, tar_stderr = tar_process.communicate()
         listing_stdout, listing_stderr = awk_process.communicate()
-    if tar_process.returncode != 0:
-        logger.info(f'!!! ARCHIVE LISTING FAILURE: Failed to include file {archive_path} in archive {listing_dest_path} !!!')
-        fail_logger.error(archive_path.encode(encoding='UTF-8'))
     if awk_process.returncode != 0:
         logger.info(f'!!! AWK FAILURE: Failed to include file {archive_path} in archive {listing_dest_path} !!!')
         fail_logger.error(archive_path.encode(encoding='UTF-8'))

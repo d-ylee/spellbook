@@ -135,7 +135,7 @@ def main():
     start_from, offset_file_path = get_start_offset(args.file_info_f, args.ignore_checkpoint)
     logger.info(f'Starting processing from {start_from} lines into the input file...')
 
-    with open(args.file_info_f) as f:
+    with open(args.file_info_f, encoding='utf-8', errors='ignore') as f:
         for i, item in enumerate(f):
             if not at_offset(i, start_from):
                 continue

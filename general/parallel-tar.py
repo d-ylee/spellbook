@@ -46,7 +46,7 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
     logger.info(f'(pid:{pid}): TAR OUTPUT: {tar_stdout.decode().strip()}')
     if tar_process.returncode != 0:
         logger.info(f'!!!  TAR FAILURE  !!!')
-        with open(tarlist_tempfile_path, 'r') as tarlist:
+        with open(tarlist_tempfile_path, 'r', encoding='utf-8', errors='ignore') as tarlist:
             for missed_file in tarlist:
                 logger.error(f'Failed to include file {missed_file} in archive {archive_dest_path}')
                 fail_logger.error(missed_file.encode(encoding='UTF-8'))

@@ -38,7 +38,7 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
         f'--file={archive_dest_path}',
         f'--files-from={tarlist_tempfile_path}',
         #'--atime-preserve', # preserve access times
-        '--dereference', # Follow symlinks, and build their referents into the tarchive
+        #'--dereference', # Don't do this dumbass. Follow symlinks, and build their referents into the tarchive
         #'--gzip', # PHENOMENAL COSMIC POWER! itty bitty living space
         '--verbose' # let us know what's going on
     ], stdout=subprocess.PIPE)

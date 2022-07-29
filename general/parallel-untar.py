@@ -23,6 +23,7 @@ def execute_untar(pid, archive_path, untar_dest_path, fail_logger):
         '--extract',
         '--verbose',
         '--keep-directory-symlink',
+        '--keep-newer-files',
         f'--file={archive_path}',
         f'--directory={untar_dest_path}',
     ], stdout=subprocess.PIPE)

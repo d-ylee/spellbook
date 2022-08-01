@@ -1,6 +1,6 @@
 #!/bin/bash
 
-parallel_listing_script=/home/bjwhite/spellbook/general/parallel-generate-tarlist.py
+parallel_listing_script=/sdf/home/b/bjwhite/spellbook/general/parallel-generate-tarlist.py
 echo $(date)
 python3 ${parallel_listing_script} \
 	--num-procs ${1} \

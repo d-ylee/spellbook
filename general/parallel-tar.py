@@ -5,6 +5,7 @@
 
 import argparse
 import getpass
+import hashlib
 import logging
 import math
 import os
@@ -38,7 +39,7 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
         f'--file={archive_dest_path}',
         f'--files-from={tarlist_tempfile_path}',
         #'--atime-preserve', # preserve access times
-        '--dereference', # Follow symlinks, and build their referents into the tarchive
+        #'--dereference', # Don't do this dumbass. Follow symlinks, and build their referents into the tarchive
         #'--gzip', # PHENOMENAL COSMIC POWER! itty bitty living space
         '--verbose' # let us know what's going on
     ], stdout=subprocess.PIPE)
@@ -46,7 +47,7 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
     logger.info(f'(pid:{pid}): TAR OUTPUT: {tar_stdout.decode().strip()}')
     if tar_process.returncode != 0:
         logger.info(f'!!!  TAR FAILURE  !!!')
-        with open(tarlist_tempfile_path, 'r') as tarlist:
+        with open(tarlist_tempfile_path, 'r', encoding='utf-8', errors='ignore') as tarlist:
             for missed_file in tarlist:
                 logger.error(f'Failed to include file {missed_file} in archive {archive_dest_path}')
                 fail_logger.error(missed_file.encode(encoding='UTF-8'))
@@ -135,7 +136,7 @@ def main():
     start_from, offset_file_path = get_start_offset(args.file_info_f, args.ignore_checkpoint)
     logger.info(f'Starting processing from {start_from} lines into the input file...')
 
-    with open(args.file_info_f) as f:
+    with open(args.file_info_f, encoding='utf-8', errors='ignore') as f:
         for i, item in enumerate(f):
             if not at_offset(i, start_from):
                 continue

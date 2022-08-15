@@ -38,6 +38,7 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
         '--create', # --preserve-permissions is implied by execution as a superuser
         f'--file={archive_dest_path}',
         f'--files-from={tarlist_tempfile_path}',
+        '--ignore-failed-read',
         #'--atime-preserve', # preserve access times
         #'--dereference', # Don't do this dumbass. Follow symlinks, and build their referents into the tarchive
         #'--gzip', # PHENOMENAL COSMIC POWER! itty bitty living space

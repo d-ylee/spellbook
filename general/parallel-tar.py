@@ -85,9 +85,10 @@ def do_processing(pid, tar_queue, args):
             logger.info(f'PID: {pid} complete. Waiting to join.')
             return
 
-        tar_info = tar_info.split()
-        file_size = int(tar_info[0])
-        file_path = tar_info[1] + '\n'
+        tar_info_split = tar_info.split()
+        file_size = int(tar_info_split[0])
+        file_path = tar_info.split(' ',1)[1].lstrip(' ')+"\n"
+        tar_info = tar_info_split
 
         if tar_rolling_size < TARBALL_SIZE_LIMIT:
             tar_rolling_size += file_size

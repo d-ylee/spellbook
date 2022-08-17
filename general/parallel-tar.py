@@ -87,7 +87,6 @@ def do_processing(pid, tar_queue, args):
 
         tar_info_split = tar_info.split()
         file_size = int(tar_info_split[0])
-        logger.info(f'F: {tar_info_split}')
         file_path = tar_info.replace('\t', ' ').split(' ',1)[1].lstrip(' ')+"\n"
         tar_info = tar_info_split
 

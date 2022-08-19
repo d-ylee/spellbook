@@ -80,6 +80,7 @@ def do_processing(pid, tar_queue, args):
         tar_info = tar_queue.get()
         if isinstance(tar_info, Sentinel):
             tarlist_tempfile.flush()
+            os.fsync(tarlist_tempfile.fileno())
             execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger) # DO THE TAR
             tarlist_tempfile.close()
             logger.info(f'PID: {pid} complete. Waiting to join.')
@@ -98,6 +99,7 @@ def do_processing(pid, tar_queue, args):
         elif tar_rolling_size >= TARBALL_SIZE_LIMIT:
             # Flush I/O buffer to file
             tarlist_tempfile.flush()
+            os.fsync(tarlist_tempfile.fileno())
             try:
                 execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger) # DO THE TAR
             except Exception:

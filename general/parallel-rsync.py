@@ -23,8 +23,8 @@ logger = logging.getLogger()
 def execute_transfer(pid, local_directory, remote_host, transfer_path, user, pwd_f, fail_logger):
     #module = 'LSSTUser' # TODO: Make this an actual argument
     #module = 'LSSTScratch' # TODO: Make this an actual argument
-    #module = 'LSSTScratch' # TODO: Make this an actual argument
-    module = 'LSSTTarballs'
+    module = 'LSSTScratch' # TODO: Make this an actual argument
+    #module = 'LSSTTarballs'
     remote_source = f'{user}@{remote_host}::{module}/{transfer_path}'
     format_string = '--out-format=\"%o %m %i %n %l %C\"' # TODO: Make this an actual argument
     pwd_arg = f'--password-file={pwd_f}'

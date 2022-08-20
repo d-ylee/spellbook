@@ -20,9 +20,12 @@ from util import Sentinel, start_processes, end_processes, get_start_offset, set
 logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', level=logging.INFO)
 logger = logging.getLogger()
 
+module = 'LSSTOffline'
+
 def execute_transfer(pid, local_directory, remote_host, transfer_path, user, pwd_f, fail_logger):
     #module = 'LSSTUser' # TODO: Make this an actual argument
-    module = 'LSSTScratch' # TODO: Make this an actual argument
+    #module = 'LSSTScratch' # TODO: Make this an actual argument
+    #module = 'LSSTScratch' # TODO: Make this an actual argument
     remote_source = f'{user}@{remote_host}::{module}/{transfer_path}'
     format_string = '--out-format=\"%o %m %i %n %l %C\"' # TODO: Make this an actual argument
     pwd_arg = f'--password-file={pwd_f}'

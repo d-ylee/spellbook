@@ -13,7 +13,6 @@ import sys
 import multiprocessing as mp
 
 from rucio.client import Client as RucioClient
-from rucio.client.uploadclient import UploadClient as RucioUploadClient
 
 from rucio.client.replicaclient import ReplicaClient
 from rucio.client.didclient import DIDClient
@@ -31,9 +30,8 @@ class Registrar:
         self.rse = args.rse
 
     def do_processing(self, tid, files):
-        logger.info(f'(tid:{tid}) Preparing {len(files)} files for upload')
+        logger.info(f'(tid:{tid}) Preparing {len(files)} files for ingest')
         self.rucio_client = RucioClient(account=self.rucio_account)
-        self.rucio_upload_client = RucioUploadClient(_client=self.rucio_client, logger=logger)
         R = ReplicaClient()
         D = DIDClient()
         logger.info(f'Creating dataset {self.scope}:{self.dataset_name}')
@@ -107,13 +105,13 @@ def main():
 
 def get_program_arguments():
     parser = argparse.ArgumentParser(description='Rucio Bulk In-Place Ingest: Register files with the Rucio DB without transferring them.')
-    parser.add_argument('dataset_name', help='Name of the dataset to be created that all uploaded files are to be attached to.')
-    parser.add_argument('rse', help='Rucio Storage Element that the files will be uploaded to.')
+    parser.add_argument('dataset_name', help='Name of the dataset to be created that all ingested files are to be attached to.')
+    parser.add_argument('rse', help='Rucio Storage Element that the files will be ingested to.')
     parser.add_argument('filelist', help='Text file with information for one file per line of the files to be registered.\\n\tLine Format: <name> <checksum> <size in bytes>')
     parser.add_argument('--num-procs', type=int, default=1, help='Number of processes to divy up filelist between.')
     parser.add_argument('--rucio-account', default="root", help='Rucio account to be used.')
     parser.add_argument('--scope', help='Rucio scope that the files are to be placed in. Default: user.{rucio-account}')
-    parser.add_argument('--just-say', type=bool, default=False, help='For testing. Do not actually upload files if True. Default: False')
+    parser.add_argument('--just-say', type=bool, default=False, help='For testing. Do not actually ingest files if True. Default: False')
 
     args = parser.parse_args()
     return args

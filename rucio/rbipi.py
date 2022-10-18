@@ -62,11 +62,10 @@ class Registrar:
         ds = list(D.list_content(self.scope, self.dataset_name))
         for fileinfo_raw in files:
             fileinfo = fileinfo_raw.split(" ")
-            path = fileinfo[0]
+            name = fileinfo[0]
             adler = fileinfo[1]
 #           md5 = fileinfo[2]
             nbytes = int(fileinfo[2])
-            name = path.split('/')[-1]
             logger.info(f'Create new item for registration: {self.scope}, {name}, {adler}, {nbytes}')
             replica = {
                  'scope': self.scope,
@@ -110,7 +109,7 @@ def get_program_arguments():
     parser = argparse.ArgumentParser(description='Rucio Bulk In-Place Ingest: Register files with the Rucio DB without transferring them.')
     parser.add_argument('dataset_name', help='Name of the dataset to be created that all uploaded files are to be attached to.')
     parser.add_argument('rse', help='Rucio Storage Element that the files will be uploaded to.')
-    parser.add_argument('filelist', help='Text file with information for one file per line of the files to be registered.\\n\tLine Format: <path> <checksum> <size in bytes>')
+    parser.add_argument('filelist', help='Text file with information for one file per line of the files to be registered.\\n\tLine Format: <name> <checksum> <size in bytes>')
     parser.add_argument('--num-procs', type=int, default=1, help='Number of processes to divy up filelist between.')
     parser.add_argument('--rucio-account', default="root", help='Rucio account to be used.')
     parser.add_argument('--scope', help='Rucio scope that the files are to be placed in. Default: user.{rucio-account}')

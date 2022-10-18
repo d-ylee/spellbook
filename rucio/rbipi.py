@@ -29,21 +29,9 @@ class Registrar:
         self.dataset_name = args.dataset_name
         self.rse = args.rse
 
-    def do_processing(self, tid, files):
+    def do_processing(self, tid, files, R, D):
         logger.info(f'(tid:{tid}) Preparing {len(files)} files for ingest')
-        self.rucio_client = RucioClient(account=self.rucio_account)
-        R = ReplicaClient()
-        D = DIDClient()
-        logger.info(f'Creating dataset {self.scope}:{self.dataset_name}')
-        D.add_did(
-                scope=self.scope,
-                name=self.dataset_name,
-                did_type='dataset',
-                rules=[
-                    { 'account': self.rucio_account, 'copies': 1, 'rse_expression': self.rse }
-                ]
-        )
-        registration_items = self.prepare_items(files)
+        registration_items = self.prepare_items(files, D)
         if not self.just_say:
             logger.info(f'(tid:{tid}) Registering {len(registration_items)} files to {self.rse}.\
                     \n\tAdding them to the dataset {self.scope}:{self.dataset_name}')
@@ -53,10 +41,9 @@ class Registrar:
             logger.info(f'(tid:{tid}) Would have registered {len(registration_items)} files to {self.rse}.\
                     \n\tWould have added them to the dataset {self.scope}:{self.dataset_name}')
 
-    def prepare_items(self, files):
+    def prepare_items(self, files, D):
         items = []
         count = 0
-        D = DIDClient()
         ds = list(D.list_content(self.scope, self.dataset_name))
         for fileinfo_raw in files:
             fileinfo = fileinfo_raw.split(" ")
@@ -93,10 +80,22 @@ def main():
 
     procs = []
     logger.info(f'(Main) Starting up {args.num_procs} worker processes')
+    registrar.rucio_client = RucioClient(account=args.rucio_account)
+    R = ReplicaClient()
+    D = DIDClient()
+    logger.info(f'Creating dataset {args.scope}:{args.dataset_name}')
+    D.add_did(
+            scope=args.scope,
+            name=args.dataset_name,
+            did_type='dataset',
+            rules=[
+                { 'account': args.rucio_account, 'copies': 1, 'rse_expression': args.rse }
+            ]
+    )
     with open(args.filelist) as f: # Obtain the work distribution and hand it to the procs
         file_queues =  get_file_queues(args.num_procs, f)
         for i in range(args.num_procs):
-            p = mp.Process(target=registrar.do_processing, args=(i, file_queues[i]))
+            p = mp.Process(target=registrar.do_processing, args=(i, file_queues[i], R, D))
             p.start()
             procs.append(p)
     for t in procs:

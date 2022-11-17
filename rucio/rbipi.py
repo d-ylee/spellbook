@@ -16,6 +16,7 @@ from rucio.client import Client as RucioClient
 
 from rucio.client.replicaclient import ReplicaClient
 from rucio.client.didclient import DIDClient
+from rucio.common.exception import DataIdentifierAlreadyExists
 import rucio.rse.rsemanager as rsemgr
 
 logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', level=logging.INFO)
@@ -25,7 +26,7 @@ class Registrar:
     def __init__(self, args):
         self.just_say = args.just_say
         self.rucio_account = args.rucio_account
-        self.scope = args.scope
+        self.scope = args.scope if args.scope is not None else f'user.{self.rucio_account}'
         self.dataset_name = args.dataset_name
         self.rse = args.rse
 
@@ -84,14 +85,18 @@ def main():
     R = ReplicaClient()
     D = DIDClient()
     logger.info(f'Creating dataset {args.scope}:{args.dataset_name}')
-    D.add_did(
-            scope=args.scope,
-            name=args.dataset_name,
-            did_type='dataset',
-            rules=[
-                { 'account': args.rucio_account, 'copies': 1, 'rse_expression': args.rse }
-            ]
-    )
+    try:
+        D.add_did(
+                scope=args.scope if args.scope is not None else f'user.{args.rucio_account}',
+                name=args.dataset_name,
+                did_type='dataset',
+                rules=[
+                    { 'account': args.rucio_account, 'copies': 1, 'rse_expression': args.rse }
+                ]
+        )
+    except DataIdentifierAlreadyExists:
+        pass # This is fine, we might want to add more files to the same dataset
+
     with open(args.filelist) as f: # Obtain the work distribution and hand it to the procs
         file_queues =  get_file_queues(args.num_procs, f)
         for i in range(args.num_procs):

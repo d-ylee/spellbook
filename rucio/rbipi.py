@@ -10,6 +10,7 @@ import argparse
 import logging
 import os
 import sys
+from time import sleep
 import multiprocessing as mp
 
 from rucio.client import Client as RucioClient
@@ -30,38 +31,67 @@ class Registrar:
         self.dataset_name = args.dataset_name
         self.rse = args.rse
 
-    def do_processing(self, tid, files, R, D):
-        logger.info(f'(tid:{tid}) Preparing {len(files)} files for ingest')
-        registration_items = self.prepare_items(files, D)
+    def do_processing(self, tid, files, R, D, badlist):
+        logger.info(f'(tid:{tid}) There are {len(files)} LFNs to process.')
+        registration_items = self.prepare_items(files, D, badlist)
         if not self.just_say:
-            logger.info(f'(tid:{tid}) Registering {len(registration_items)} files to {self.rse}.\
-                    \n\tAdding them to the dataset {self.scope}:{self.dataset_name}')
-            R.add_replicas(rse=self.rse, files=registration_items)
-            D.attach_dids(self.scope, self.dataset_name, registration_items)
+            logger.info(f'(tid:{tid}) Registering {len(registration_items)} LFNs to {self.rse}.')
+            if len(registration_items) > 0 :
+                logger.info(f'Adding them to the dataset {self.scope}:{self.dataset_name}')
+                try:
+                    R.add_replicas(rse=self.rse, files=registration_items)
+                    D.attach_dids(self.scope, self.dataset_name, registration_items)
+                    logger.info(f'ingested {len(registration_items)} LFNs.\n\t ALL DONE!')
+                except Exception as ex:
+                    logger.error(ex) 
+                    logger.info("First registering to REPLICAS and DIDS failed! Will try again after 0.05 second.")
+                    sleep(0.05)
+                    logger.info("Second try to register to REPLICAS and DIDS!" )
+                    R.add_replicas(rse=self.rse, files=registration_items)
+                    D.attach_dids(self.scope, self.dataset_name, registration_items)
+                    logger.info(f'ingested {len(registration_items)} LFNs.\n\t ALL DONE!')
+            else:
+                logger.info("No LFNs registered, They already in Rucio. \n\t ALL DONE!")
         else:
-            logger.info(f'(tid:{tid}) Would have registered {len(registration_items)} files to {self.rse}.\
+            logger.info(f'(tid:{tid}) Would have registered {len(registration_items)} LFNs to {self.rse}.\
                     \n\tWould have added them to the dataset {self.scope}:{self.dataset_name}')
 
-    def prepare_items(self, files, D):
+    def prepare_items(self, files, D, badlist):
         items = []
         count = 0
-        ds = list(D.list_content(self.scope, self.dataset_name))
+        try:
+            ds = list(D.list_content(self.scope, self.dataset_name))
+        except Exception as ex:
+            logger.error(ex) 
+            logger.error("First try to connect to Rucio failed ! Will try again after 0.05 second.")
+            sleep(0.05)
+            ds = list(D.list_content(self.scope, self.dataset_name))
+            logger.info("Sucessfully connected to Rucio! Get contents from Rucio.")
+        bad =  open(badlist, 'a')
+        np = 0
         for fileinfo_raw in files:
-            fileinfo = fileinfo_raw.split(" ")
-            name = fileinfo[0]
-            adler = fileinfo[1]
-#           md5 = fileinfo[2]
-            nbytes = int(fileinfo[2])
-            logger.info(f'Create new item for registration: {self.scope}, {name}, {adler}, {nbytes}')
-            replica = {
+            try:
+                fileinfo = fileinfo_raw.split(" ")
+                name = fileinfo[0]
+                adler = fileinfo[1]
+#               md5 = fileinfo[2]
+                nbytes = int(fileinfo[2])
+                np += 1
+                if np < 3 :
+                    logger.info(f'Create new item for registration: {self.scope}, {name}, {adler}, {nbytes}')
+                replica = {
                  'scope': self.scope,
                  'name' : name,
                  'bytes': nbytes,
                  'adler32': adler,
 #                'md5': md5,
-            }
-            if {'scope': self.scope, 'name': name, 'type': 'FILE', 'bytes': nbytes, 'adler32': adler, 'md5': None} not in ds:
-                items.append(replica)
+                }
+                if {'scope': self.scope, 'name': name, 'type': 'FILE', 'bytes': nbytes, 'adler32': adler, 'md5': None} not in ds:
+                    items.append(replica)
+            except IndexError:
+                bad.write(fileinfo_raw + '\n')
+                pass
+        bad.close()
         return items
 
 def get_file_queues(num_procs, f):
@@ -72,7 +102,7 @@ def get_file_queues(num_procs, f):
         which_queue = num_files % num_procs
         queues[which_queue].append(filename.strip())
         num_files += 1
-    logger.info(f'(Main) Total files: {num_files}\n\t~{num_files/num_procs} allocated per worker')
+    logger.info(f'(Main) Total LFNs: {num_files}\n\t~{num_files/num_procs} allocated per worker')
     return queues
 
 def main():
@@ -97,21 +127,26 @@ def main():
     except DataIdentifierAlreadyExists:
         pass # This is fine, we might want to add more files to the same dataset
 
-    with open(args.filelist) as f: # Obtain the work distribution and hand it to the procs
-        file_queues =  get_file_queues(args.num_procs, f)
-        for i in range(args.num_procs):
-            p = mp.Process(target=registrar.do_processing, args=(i, file_queues[i], R, D))
-            p.start()
-            procs.append(p)
-    for t in procs:
-        t.join()
-    logger.info(f'(Main) Registrations complete.')
+    path = '.'
+    for fl in os.listdir(path):
+        if args.filelist in fl :
+            badlist = fl + '.bad'
+            logger.info(f'(Main)Starting to process file: {fl}')
+            with open(fl) as f: # Obtain the work distribution and hand it to the procs
+                file_queues =  get_file_queues(args.num_procs, f)
+                for i in range(args.num_procs):
+                    p = mp.Process(target=registrar.do_processing, args=(i, file_queues[i], R, D, badlist))
+                    p.start()
+                    procs.append(p)
+            logger.info(f'(Main) Processing file:  {fl}.')
+        for t in procs:
+            t.join()
 
 def get_program_arguments():
     parser = argparse.ArgumentParser(description='Rucio Bulk In-Place Ingest: Register files with the Rucio DB without transferring them.')
     parser.add_argument('dataset_name', help='Name of the dataset to be created that all ingested files are to be attached to.')
     parser.add_argument('rse', help='Rucio Storage Element that the files will be ingested to.')
-    parser.add_argument('filelist', help='Text file with information for one file per line of the files to be registered.\\n\tLine Format: <name> <checksum> <size in bytes>')
+    parser.add_argument('filelist', help='Text file name in the directoy with information for one file per line of the files to be registered.\\n\tLine Format: <name> <checksum> <size in bytes>. \\n\tIf one want to covery all the files, one can use partial name. Ex: if one wants to ingest all datafile[0-9][0-9].txt, the filelist will be datafile. ')
     parser.add_argument('--num-procs', type=int, default=1, help='Number of processes to divy up filelist between.')
     parser.add_argument('--rucio-account', default="root", help='Rucio account to be used.')
     parser.add_argument('--scope', help='Rucio scope that the files are to be placed in. Default: user.{rucio-account}')

@@ -33,14 +33,15 @@ class Registrar:
 
     def do_processing(self, tid, files, R, D, badlist):
         logger.info(f'(tid:{tid}) There are {len(files)} LFNs to process.')
-        registration_items = self.prepare_items(files, D, badlist)
+        registration_items, contents  = self.prepare_items(files, D, badlist)
         if not self.just_say:
             logger.info(f'(tid:{tid}) Registering {len(registration_items)} LFNs to {self.rse}.')
             if len(registration_items) > 0 :
                 logger.info(f'Adding them to the dataset {self.scope}:{self.dataset_name}')
                 try:
                     R.add_replicas(rse=self.rse, files=registration_items)
-                    D.attach_dids(self.scope, self.dataset_name, registration_items)
+                    attachments=[{'scope': self.scope, 'name': self.dataset_name, 'dids':contents }]
+                    D.add_files_to_datasets(attachments, ignore_duplicate=True)
                     logger.info(f'ingested {len(registration_items)} LFNs.\n\t ALL DONE!')
                 except Exception as ex:
                     logger.error(ex) 
@@ -48,7 +49,8 @@ class Registrar:
                     sleep(0.05)
                     logger.info("Second try to register to REPLICAS and DIDS!" )
                     R.add_replicas(rse=self.rse, files=registration_items)
-                    D.attach_dids(self.scope, self.dataset_name, registration_items)
+                    attachments=[{'scope': self.scope, 'name': self.dataset_name, 'dids':contents }]
+                    D.add_files_to_datasets(attachments, ignore_duplicate=True)
                     logger.info(f'ingested {len(registration_items)} LFNs.\n\t ALL DONE!')
             else:
                 logger.info("No LFNs registered, They already in Rucio. \n\t ALL DONE!")
@@ -58,6 +60,7 @@ class Registrar:
 
     def prepare_items(self, files, D, badlist):
         items = []
+        contents = []
         count = 0
         try:
             ds = list(D.list_content(self.scope, self.dataset_name))
@@ -88,11 +91,12 @@ class Registrar:
                 }
                 if {'scope': self.scope, 'name': name, 'type': 'FILE', 'bytes': nbytes, 'adler32': adler, 'md5': None} not in ds:
                     items.append(replica)
+                    contents.append({'scope': self.scope, 'name': name})
             except IndexError:
                 bad.write(fileinfo_raw + '\n')
                 pass
         bad.close()
-        return items
+        return items, contents
 
 def get_file_queues(num_procs, f):
     # Splits the list of files into (almost) equal buckets of work per proc

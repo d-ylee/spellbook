@@ -150,7 +150,7 @@ def get_program_arguments():
     parser = argparse.ArgumentParser(description='Rucio Bulk In-Place Ingest: Register files with the Rucio DB without transferring them.')
     parser.add_argument('dataset_name', help='Name of the dataset to be created that all ingested files are to be attached to.')
     parser.add_argument('rse', help='Rucio Storage Element that the files will be ingested to.')
-    parser.add_argument('filelist', help='Text file name in the directoy with information for one file per line of the files to be registered.\\n\tLine Format: <name> <checksum> <size in bytes>. \\n\tIf one want to covery all the files, one can use partial name. Ex: if one wants to ingest all datafile[0-9][0-9].txt, the filelist will be datafile. ')
+    parser.add_argument('filelist', help='Text file name in the directoy with information for one file per line of the files to be registered.\\n\tLine Format: <name> <Adler32 checksum> <size in bytes>. \\n\tIf one want to covery all the files, one can use partial name. Ex: if one wants to ingest all datafile[0-9][0-9].txt, the filelist will be datafile.\\n\tThe data should be placed at a location in the RSE dependent on the MD5 checksum of the scope:name LFN. The Adler32 used in this --filelist argument concerns long-term data verification rather than data location.')
     parser.add_argument('--num-procs', type=int, default=1, help='Number of processes to divy up filelist between.')
     parser.add_argument('--rucio-account', default="root", help='Rucio account to be used.')
     parser.add_argument('--scope', help='Rucio scope that the files are to be placed in. Default: user.{rucio-account}')

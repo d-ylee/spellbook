@@ -12,24 +12,20 @@ import random
 
 import gfal2
 from rucio.client import Client as RucioClient
-from rucio.common.config import config_get_int, config_get
-from rucio.common.exception import (RucioException, RSEWriteBlocked, DataIdentifierAlreadyExists, RSEOperationNotSupported,
-                                    DataIdentifierNotFound, NoFilesUploaded, NotAllFilesUploaded, FileReplicaAlreadyExists,
-                                    ResourceTemporaryUnavailable, ServiceUnavailable, InputValidationError, RSEChecksumUnavailable,
-                                    ScopeNotFound)
 from rucio.client.uploadclient import UploadClient
-from rucio.common.utils import (adler32, detect_client_location, execute, generate_uuid, make_valid_did, md5, send_trace,
-                                retry, GLOBALLY_SUPPORTED_CHECKSUMS)
+from rucio.common.exception import (DataIdentifierNotFound, RSEWriteBlocked, InputValidationError, NoFilesUploaded)
 from rucio.rse import rsemanager as rsemgr
 
 logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', level=logging.INFO)
-logger = logging.getLogger('rbipi')
+logger = logging.getLogger('ndrseipi')
 
 
 class InPlaceIngestClient(UploadClient):
-    def __init__(self, _client=None, logger=None, tracing=True, ctxt=None):
+    def __init__(self, _client=None, logger=None, tracing=True, ctxt=None, target_dir=None):
         super().__init__(_client, logger, tracing)
         self.ctxt = ctxt
+        self.target_dir = target_dir
+
 
     def _upload_item(self, rse_settings, rse_attributes, lfn,
                      source_dir=None, domain='wan', impl=None,
@@ -38,6 +34,152 @@ class InPlaceIngestClient(UploadClient):
         """Override _upload_item"""
         pfn = force_pfn
         return pfn
+
+    def ingest(self, items, summary_file_path=None, traces_copy_out=None, ignore_availability=False, activity=None):
+
+        def _pick_random_rse(rse_expression):
+            rses = [r['rse'] for r in self.client.list_rses(rse_expression)]  # can raise InvalidRSEExpression
+            random.shuffle(rses)
+            return rses[0]
+
+        logger = self.logger
+        files = self._collect_and_validate_file_info(items)
+        # self._register_file()
+        print(files)
+
+        registered_dataset_dids = set()
+        registered_file_dids = set()
+        rse_expression = None
+        for file in files:
+            rse_expression = file['rse']
+            rse = self.rse_expressions.setdefault(rse_expression, _pick_random_rse(rse_expression))
+
+            if not self.rses.get(rse):
+                rse_settings = self.rses.setdefault(rse, rsemgr.get_rse_info(rse, vo=self.client.vo))
+                if not ignore_availability and rse_settings['availability_write'] != 1:
+                    raise RSEWriteBlocked('%s is not available for writing. No actions have been taken' % rse)
+
+            dataset_scope = file.get('dataset_scope')
+            dataset_name = file.get('dataset_name')
+            file['rse'] = rse
+            if dataset_scope and dataset_name:
+                dataset_did_str = f'{dataset_scope}:{dataset_name}'
+                file['dataset_did_str'] = dataset_did_str
+                registered_dataset_dids.add(dataset_did_str)
+            
+            registered_file_dids.add(f'{file["did_scope"]}:{file["did_name"]}')
+        wrong_dids = registered_file_dids.intersection(registered_dataset_dids)
+        if len(wrong_dids):
+            raise InputValidationError('DIDs used to address both files and datasets: %s' % str(wrong_dids))
+        logger(logging.DEBUG, 'Input validation done.')
+
+        registered_dataset_dids = set()
+        num_succeeded = 0
+        num_already_exists = 0
+        summary = []
+        for file in files:
+            basename = file['basename']
+            logger(logging.INFO, 'Preparing ingest for file %s' % basename)
+
+            no_register = file.get('no_register')
+            register_after_upload = file.get('register_after_upload') and not no_register
+            pfn = file.get('pfn')
+            force_scheme = file.get('force_scheme')
+            impl = file.get('impl')
+            delete_existing = False
+
+            trace = copy.deepcopy(self.trace)
+            # appending trace to list reference, if the reference exists
+            if traces_copy_out is not None:
+                traces_copy_out.append(trace)
+
+            rse = file['rse']
+            trace['scope'] = file['did_scope']
+            trace['datasetScope'] = file.get('dataset_scope', '')
+            trace['dataset'] = file.get('dataset_name', '')
+            trace['remoteSite'] = rse
+            trace['filesize'] = file['bytes']
+
+            file_did = {'scope': file['did_scope'], 'name': file['did_name']}
+            dataset_did_str = file.get('dataset_did_str')
+            rse_settings = self.rses[rse]
+            rse_sign_service = rse_settings.get('sign_url', None)
+            is_deterministic = rse_settings.get('deterministic', True)
+
+            # TODO: If deterministic, check the path with a calculated path
+            if not is_deterministic and not pfn:
+                logger(logging.ERROR, 'PFN has to be defined for NON-DETERMINISTIC RSE.')
+                continue
+            if pfn and is_deterministic:
+                logger(logging.WARNING, 'Upload with given pfn implies that no_register is True, except non-deterministic RSEs')
+                no_register = True
+
+            # resolving local area networks
+            domain = 'wan'
+            rse_attributes = {}
+            try:
+                rse_attributes = self.client.list_rse_attributes(rse)
+            except:
+                logger(logging.WARNING, 'Attributes of the RSE: %s not available.' % rse)
+            if (self.client_location and 'lan' in rse_settings['domain'] and 'site' in rse_attributes):
+                if self.client_location['site'] == rse_attributes['site']:
+                    domain = 'lan'
+            logger(logging.DEBUG, '{} domain is used for the upload'.format(domain))
+
+            if not no_register and not register_after_upload:
+                self._register_file(file, registered_dataset_dids, ignore_availability=ignore_availability, activity=activity)
+
+            # if register_after_upload, file should be overwritten if it is not registered
+            # otherwise if file already exists on RSE we're done
+            if register_after_upload:
+                if rsemgr.exists(rse_settings, pfn if pfn else file_did, domain=domain, scheme=force_scheme, impl=impl, auth_token=self.auth_token, vo=self.client.vo, logger=logger):
+                    try:
+                        self.client.get_did(file['did_scope'], file['did_name'])
+                        logger(logging.INFO, 'File already registered. Skipping upload.')
+                        trace['stateReason'] = 'File already exists'
+                        continue
+                    except DataIdentifierNotFound:
+                        logger(logging.INFO, 'File already exists on RSE. Previous left overs will be overwritten.')
+                        delete_existing = True
+            elif not is_deterministic and not no_register:
+                if rsemgr.exists(rse_settings, pfn, domain=domain, scheme=force_scheme, impl=impl, auth_token=self.auth_token, vo=self.client.vo, logger=logger):
+                    logger(logging.INFO, 'File already exists on RSE with given pfn. Skipping upload. Existing replica has to be removed first.')
+                    trace['stateReason'] = 'File already exists'
+                    num_already_exists += 1
+                    continue
+                elif rsemgr.exists(rse_settings, file_did, domain=domain, scheme=force_scheme, impl=impl, auth_token=self.auth_token, vo=self.client.vo, logger=logger):
+                    logger(logging.INFO, 'File already exists on RSE with different pfn. Skipping upload.')
+                    trace['stateReason'] = 'File already exists'
+                    num_already_exists += 1
+                    continue
+            else:
+                if rsemgr.exists(rse_settings, pfn if pfn else file_did, domain=domain, scheme=force_scheme, impl=impl, auth_token=self.auth_token, vo=self.client.vo, logger=logger):
+                    logger(logging.INFO, 'File already exists on RSE. Skipping upload')
+                    trace['stateReason'] = 'File already exists'
+                    num_already_exists += 1
+                    continue
+            
+            num_succeeded += 1
+            trace['transferEnd'] = time.time()
+            trace['clientState'] = 'DONE'
+            file['state'] = 'A'
+            logger(logging.INFO, 'Successfully ingested file %s' % basename)
+            self._send_trace(trace)
+
+            self._register_file(file, registered_dataset_dids, ignore_availability=ignore_availability, activity=activity)
+            if dataset_did_str:
+                try:
+                    self.client.attach_dids(file['dataset_scope'], file['dataset_name'], [file_did])
+                except Exception as error:
+                    logger(logging.WARNING, 'Failed to attach file to the dataset')
+                    logger(logging.DEBUG, 'Attaching to dataset {}'.format(str(error)))
+        
+        if num_succeeded == 0:
+            if num_already_exists > 0:
+                logger(logging.INFO, f'{num_already_exists} files skipped since the files already exists on RSE')
+            else:
+                raise NoFilesUploaded()
+        return 0
 
     def _collect_file_info(self, filepath, item):
         """
@@ -59,10 +201,19 @@ class InPlaceIngestClient(UploadClient):
 
         new_item['bytes'] = file_stats.st_size
 
-        adler32 = self.ctxt.checksum(filepath, 'adler32')
-        new_item['adler32'] = adler32
+        try:
+            adler32 = self.ctxt.checksum(filepath, 'adler32')
+            new_item['adler32'] = adler32
+        except Exception as e:
+            logger.error(f'cannot get adler32 checksum for {filepath}')
+            raise
 
-        md5 = self.ctxt.checksum(filepath, 'md5')
+        try:
+            md5 = self.ctxt.checksum(filepath, 'md5')
+        except Exception as e:
+            logger.error(f'could not get md5 checksum for {filepath}')
+            raise
+
         new_item['md5'] = md5
         new_item['meta'] = {'guid': self._get_file_guid(new_item)}
         new_item['state'] = 'C'
@@ -112,12 +263,39 @@ class InPlaceIngestClient(UploadClient):
         return files
 
 
-def discover_files(ctxt, rse: str, directory: str, scope: str) -> list:
-    '''Discover files on the server to be ingested
-    '''
+def get_files(ctxt, directory: str, rse: str) -> list:
     files = ctxt.listdir(directory)
 
     items = []
+    for f in files:
+        name = f
+        pfn = f'{directory}/{f}'
+        f_stat = ctxt.lstat(pfn)
+        size = f_stat.st_size
+        adler32 = ctxt.checksum(pfn, 'adler32')
+
+        replica = {
+            'name': name,
+            'bytes': size,
+            'adler32': adler32,
+            'path': pfn,
+            'pfn': pfn,
+            'rse': rse,
+            'register_after_upload': True
+        }
+        items.append(replica)
+
+    return items
+
+
+def discover_files(ctxt, rse: str, directory: str, scope: str) -> list:
+    '''Discover files on the server to be ingested
+    '''
+    # get contents of a directory
+    files = ctxt.listdir(directory)
+
+    items = []
+    # build pfns
     for f in files:
         name = f
         pfn = f'{directory}/{f}'
@@ -143,7 +321,7 @@ def discover_files(ctxt, rse: str, directory: str, scope: str) -> list:
 def inplace_ingest(target_dir, rse):
     ctxt = gfal2.creat_context()
 
-    rucio_client = RucioClient(account='dylee')
+    rucio_client = RucioClient()
     inplace_ingest_client = InPlaceIngestClient(rucio_client, logger=logger, ctxt=ctxt)
 
     rse_info = rucio_client.get_rse(rse=rse)
@@ -158,11 +336,31 @@ def inplace_ingest(target_dir, rse):
     inplace_ingest_client.upload(items)
 
 
+def inplace_ingest2(target_dir, rse):
+    ctxt = gfal2.creat_context()
+
+    rucio_client = RucioClient()
+    inplace_ingest_client = InPlaceIngestClient(rucio_client, logger=logger, ctxt=ctxt, target_dir=target_dir)
+
+    rse_info = rucio_client.get_rse(rse=rse)
+    rse_attributes = rucio_client.list_rse_attributes(rse)
+
+    # Checks to see if RSE is deterministic
+    if rse_info['deterministic']:
+        raise Exception("Needs to be a non-deterministic RSE")
+
+    protocol = target_dir.split(":")[0]
+
+    items = get_files(ctxt, target_dir, rse)
+    inplace_ingest_client.ingest(items)
+
+
 def main():
     args = get_program_arguments()
     target_dir = args.file_directory
     rse = args.rse
-    inplace_ingest(target_dir, rse)
+    inplace_ingest2(target_dir, rse)
+
 
 def get_program_arguments():
     parser = argparse.ArgumentParser(

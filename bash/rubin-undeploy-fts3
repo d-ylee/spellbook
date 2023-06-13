@@ -1,0 +1,6 @@
+#!/bin/bash
+
+kubectl -n fts3 delete deployments --all && \
+kubectl -n fts3 delete secrets --all && \
+kubectl -n fts3 delete cronjobs --all && \
+kubectl -n fts3 delete jobs --all

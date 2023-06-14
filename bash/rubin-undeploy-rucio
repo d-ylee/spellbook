@@ -1,5 +1,6 @@
 #!/bin/bash
 
+kubectl -n rucio delete services --all && \
 kubectl -n rucio delete deployments --all && \
 kubectl -n rucio delete secrets --all && \
 kubectl -n rucio delete cronjobs --all && \

@@ -1,0 +1,3 @@
+FROM docker.io/opensciencegrid/osg-wn
+
+RUN yum install -y fts3-rest-client

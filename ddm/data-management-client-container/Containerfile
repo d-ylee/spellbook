@@ -1,3 +1,4 @@
 FROM docker.io/opensciencegrid/osg-wn
 
 RUN yum install -y fts-rest-client
+RUN pip3 install rucio-clients

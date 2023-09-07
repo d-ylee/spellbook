@@ -2,9 +2,8 @@
 
 # Rucio Bulk In-Place Ingest
 
-# TODO: This will only ingest files that have been placed with the HASH algorithm.
 # PFNs will be determined on the Rucio side automatically for DETERMINISTIC storage endpoints.
-# Further development required for nondeterministic RSES (i.e. DUNE)
+# use ndrseipi.py for nondeterministic storage elements
 
 import argparse
 import logging

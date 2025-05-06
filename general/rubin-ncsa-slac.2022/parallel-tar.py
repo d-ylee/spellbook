@@ -38,6 +38,7 @@ def execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger):
         '--create', # --preserve-permissions is implied by execution as a superuser
         f'--file={archive_dest_path}',
         f'--files-from={tarlist_tempfile_path}',
+        '--ignore-failed-read',
         #'--atime-preserve', # preserve access times
         #'--dereference', # Don't do this dumbass. Follow symlinks, and build their referents into the tarchive
         #'--gzip', # PHENOMENAL COSMIC POWER! itty bitty living space
@@ -79,14 +80,16 @@ def do_processing(pid, tar_queue, args):
         tar_info = tar_queue.get()
         if isinstance(tar_info, Sentinel):
             tarlist_tempfile.flush()
+            os.fsync(tarlist_tempfile.fileno())
             execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger) # DO THE TAR
             tarlist_tempfile.close()
             logger.info(f'PID: {pid} complete. Waiting to join.')
             return
 
-        tar_info = tar_info.split()
-        file_size = int(tar_info[0])
-        file_path = tar_info[1] + '\n'
+        tar_info_split = tar_info.split()
+        file_size = int(tar_info_split[0])
+        file_path = tar_info.replace('\t', ' ').split(' ',1)[1].lstrip(' ')+"\n"
+        tar_info = tar_info_split
 
         if tar_rolling_size < TARBALL_SIZE_LIMIT:
             tar_rolling_size += file_size
@@ -96,6 +99,7 @@ def do_processing(pid, tar_queue, args):
         elif tar_rolling_size >= TARBALL_SIZE_LIMIT:
             # Flush I/O buffer to file
             tarlist_tempfile.flush()
+            os.fsync(tarlist_tempfile.fileno())
             try:
                 execute_tar(pid, tarlist_tempfile_path, archive_dest_path, fail_logger) # DO THE TAR
             except Exception:

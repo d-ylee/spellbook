@@ -1,0 +1,7 @@
+FROM docker.io/opensciencegrid/osg-wn
+
+RUN yum -y update && yum -y upgrade
+RUN yum install -y fts-rest-client
+RUN yum install -y gfal2-plugin-gridftp
+RUN pip3 install --upgrade pip setuptools wheel
+RUN pip3 install rucio-clients

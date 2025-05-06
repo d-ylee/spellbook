@@ -21,15 +21,20 @@ logging.basicConfig(format='%(asctime)-15s %(name)s %(levelname)s %(message)s', 
 logger = logging.getLogger()
 
 def execute_transfer(pid, local_directory, remote_host, transfer_path, user, pwd_f, fail_logger):
-    module = 'LSSTUser' # TODO: Make this an actual argument
+    #module = 'LSSTUser' # TODO: Make this an actual argument
+    #module = 'LSSTScratch' # TODO: Make this an actual argument
+    #module = 'LSSTScratch' # TODO: Make this an actual argument
+    #module = 'LSSTTarballs'
+    module = 'LSSTktl'
     remote_source = f'{user}@{remote_host}::{module}/{transfer_path}'
     format_string = '--out-format=\"%o %m %i %n %l %C\"' # TODO: Make this an actual argument
     pwd_arg = f'--password-file={pwd_f}'
     logger.info(f'(pid:{pid}) Executing transfer of {transfer_path} from {remote_host} to {local_directory}\n\t\
-            rsync --archive --relative --xattrs {pwd_arg} {format_string} {remote_source} {local_directory}')
+            rsync --archive --remove-source-files --xattrs {pwd_arg} {format_string} {remote_source} {local_directory}')
     xfer_process = subprocess.Popen([
         'rsync',
         '--archive',
+        '--remove-source-files',
         #'--relative',
         '--xattrs',
         pwd_arg,

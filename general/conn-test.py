@@ -10,8 +10,6 @@ def connect_with_netcat(host, port, trustfile):
         port (int): The port number to connect to.
         trustfile (str): The path to the SSL CA certificate (don't forget intermediates and root)
 
-    Returns:
-        bool: True if the connection was successful, False otherwise.
     """
     command = [
         "nc",
@@ -36,11 +34,11 @@ def connect_with_netcat(host, port, trustfile):
 if __name__ == "__main__":
     target_host = "usdf-fts3.slac.stanford.edu"
     target_port = 8449
-    ssl_trust_file = "InCommon-RSA-IGTF-Server-CA-3.pem"  # Make sure this file exists in the same directory
+    ssl_trust_file = "InCommon-RSA-IGTF-Server-CA-3.pem"  # Make sure this file exists in the same directory, and has the USERTrustRSACertificationAuthority.pem root certificate in it too since nc can't handle a CA cert directory
 
     successful_connections = 0
     failed_connections = 0
-    num_attempts = 500  # You can adjust the number of connection attempts
+    num_attempts = 500  # Number of connection attempts
 
     print(f"Attempting to connect to {target_host}:{target_port} {num_attempts} times...", flush=True)
 
@@ -50,7 +48,7 @@ if __name__ == "__main__":
             successful_connections += 1
         else:
             failed_connections += 1
-        time.sleep(1)  # Add a small delay between attempts if needed
+        time.sleep(1)  # Small delay between attempts
 
     print("\n--- Connection Summary ---")
     print(f"Successful Connections: {successful_connections}")

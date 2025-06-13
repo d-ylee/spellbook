@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Delete everything about a running Rucio application. Don't delete the networking stuff (i.e. Services)
+echo '
+                             _
+                            | \
+                           _|  \______________________________________
+                          - ______        ________________          \_`,
+                        -(_______            -=    -=        USAF       )
+                                 `--------=============----------------`
+                                           -   -
+                                         -   -
+                                         -   -
+                                       -   -
+                                       -   -
+                                     -   -
+                                   -   -
+                                 -   -
+                                 -   -
+                               -   -
+                               -   -
+                             -   -
+'
+echo '
+                             ____
+                     __,-~~/~    `---.
+                   _/_,---(      ,    )
+               __ /        <    /   )  \___
+- ------===;;;*====------------------===;;;===----- -  -
+                  \/  ~"~"~"~"~"~\~"~)~"/
+                  (_ (   \  (     >    \)
+                   \_( _ <         >_>*
+                      ~ `-i* ::>|--"
+                          I;|.|.|
+                         <|i::|i|`.
+                        (` ^*"`-* ")
+'
+
+kubectl -n fts3 get deployments |  tail -n+2 | awk '{print $1}' | xargs -I {} kubectl -n fts3 delete deployment {} && \
+kubectl -n fts3 get secrets |  tail -n+2 | awk '{print $1}' | xargs -I {} kubectl -n fts3 delete secret {}

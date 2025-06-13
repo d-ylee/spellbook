@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Delete everything about a running Rucio application. Don't delete the networking stuff (i.e. Services)
+echo '
+                             _
+                            | \
+                           _|  \______________________________________
+                          - ______        ________________          \_`,
+                        -(_______            -=    -=        USAF       )
+                                 `--------=============----------------`
+                                           -   -
+                                         -   -
+                                         -   -
+                                       -   -
+                                       -   -
+                                     -   -
+                                   -   -
+                                 -   -
+                                 -   -
+                               -   -
+                               -   -
+                             -   -
+'
+echo '
+                             ____
+                     __,-~~/~    `---.
+                   _/_,---(      ,    )
+               __ /        <    /   )  \___
+- ------===;;;*====------------------===;;;===----- -  -
+                  \/  ~"~"~"~"~"~\~"~)~"/
+                  (_ (   \  (     >    \)
+                   \_( _ <         >_>*
+                      ~ `-i* ::>|--"
+                          I;|.|.|
+                         <|i::|i|`.
+                        (` ^*"`-* ")
+'
+
+kubectl -n rucio get deployments |  tail -n+2 | awk '{print $1}' | xargs -I {} kubectl -n rucio delete deployment {} && \
+kubectl -n rucio get secrets |  tail -n+2 | awk '{print $1}' | xargs -I {} kubectl -n rucio delete secret {} && \
+kubectl -n rucio get job |  tail -n+2 | awk '{print $1}' | xargs -I {} kubectl -n rucio delete job {} && \
+kubectl -n rucio get cronjob |  tail -n+2 | awk '{print $1}' | xargs -I {} kubectl -n rucio delete cronjob {}

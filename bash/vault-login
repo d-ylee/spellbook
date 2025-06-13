@@ -1,15 +1,4 @@
 #!/bin/bash
 
-echo "export VAULT_ADDR=https://vault.slac.stanford.edu"
-
-read -p "Set that shit yet? (yes/no) " yn
-
-case $yn in 
-	yes ) echo ok, we will proceed;;
-	no ) echo exiting...;
-		exit;;
-	* ) echo invalid response;
-		exit 1;;
-esac
-
+export VAULT_ADDR=https://vault.slac.stanford.edu
 vault login -method=ldap username=bjwhite

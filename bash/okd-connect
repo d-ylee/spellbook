@@ -2,6 +2,9 @@
 
 # OKD4 Production
 oc login https://okdprod1-mgr.fnal.gov:6443
+#
+# OKD4 Production Replacement
+#oc login https://okdprod2-mgr.fnal.gov:6443
 
 # OKD4 Development
 #oc login https://okddev-mgr.fnal.gov:6443
